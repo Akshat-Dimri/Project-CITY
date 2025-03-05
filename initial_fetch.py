@@ -24,7 +24,10 @@ def fetch_tweets():
     for _ in range(max_requests):  # Loop until hitting rate limit
         try:
             tweets = twitter_client.search_recent_tweets(
-                query=query, max_results=10, tweet_fields=["created_at", "text", "author_id"], since_id=last_tweet_id
+                query=query, 
+                max_results=10, 
+                tweet_fields=["created_at", "text", "author_id", "public_metrics"], 
+                since_id=last_tweet_id
             )
 
             if tweets.data:
@@ -34,7 +37,9 @@ def fetch_tweets():
                         "tweet_id": tweet.id,
                         "user_id": tweet.author_id,
                         "text": tweet.text,
-                        "timestamp": str(tweet.created_at)
+                        "timestamp": str(tweet.created_at),
+                        "like_count": tweet.public_metrics["like_count"],   # Number of likes
+                        "retweet_count": tweet.public_metrics["retweet_count"]  # Number of retweets
                     }
 
                     # Check if tweet already exists in the database
