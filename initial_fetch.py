@@ -1,12 +1,18 @@
 import tweepy
 import json
 import time
+from pymongo import MongoClient
 
 # Twitter API v2 credentials
 bearer_token = "AAAAAAAAAAAAAAAAAAAAABzTzgEAAAAAZHHPdG4RJxW3TJss4kY5HpRHt7Q%3DoAaIsBYUxpBGPuGqeSaBVPOqSTdfD7vphAl1HtgxBERSJ67HvQ"
 
+# MongoDB connection (Local instance)
+client_db = MongoClient("mongodb://localhost:27017/")
+db = client_db["civic_complaints"]  # Local database name
+collection = db["tweets"]  # Collection name
+
 # Authenticate with Twitter client
-client = tweepy.Client(bearer_token=bearer_token, wait_on_rate_limit=False)  # Disable auto-wait
+twitter_client = tweepy.Client(bearer_token=bearer_token, wait_on_rate_limit=False)
 
 last_tweet_id = None
 
@@ -15,12 +21,12 @@ def fetch_tweets():
     query = "#CITYHamirpur -is:retweet"
 
     try:
-        tweets = client.search_recent_tweets(
+        tweets = twitter_client.search_recent_tweets(
             query=query, max_results=10, tweet_fields=["created_at", "text", "author_id"], since_id=last_tweet_id
         )
 
-        tweet_data = []
         if tweets.data:
+            tweet_data = []
             for tweet in tweets.data:
                 tweet_info = {
                     "tweet_id": tweet.id,
@@ -28,14 +34,14 @@ def fetch_tweets():
                     "text": tweet.text,
                     "timestamp": str(tweet.created_at)
                 }
-                tweet_data.append(tweet_info)
+
+                # Check if tweet already exists in the database
+                if not collection.find_one({"tweet_id": tweet.id}):
+                    collection.insert_one(tweet_info)
+                    tweet_data.append(tweet_info)
 
             last_tweet_id = tweets.data[0].id  # Update last tweet ID
-
-        with open("tweets.json", "w") as file:
-            json.dump(tweet_data, file, indent=4)
-
-        print("Fetched and stored", len(tweet_data), "tweets.")
+            print("Fetched and stored", len(tweet_data), "new tweets.")
 
     except tweepy.TooManyRequests:
         print("Rate limit reached. Sleeping for 15 minutes...")
