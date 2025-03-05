@@ -1,5 +1,4 @@
 import tweepy
-import json
 import time
 from pymongo import MongoClient
 
@@ -19,34 +18,44 @@ last_tweet_id = None
 def fetch_tweets():
     global last_tweet_id
     query = "#CITYHamirpur -is:retweet"
+    max_requests = 450  # Max API calls before sleeping
+    tweets_fetched = 0
 
-    try:
-        tweets = twitter_client.search_recent_tweets(
-            query=query, max_results=10, tweet_fields=["created_at", "text", "author_id"], since_id=last_tweet_id
-        )
+    for _ in range(max_requests):  # Loop until hitting rate limit
+        try:
+            tweets = twitter_client.search_recent_tweets(
+                query=query, max_results=10, tweet_fields=["created_at", "text", "author_id"], since_id=last_tweet_id
+            )
 
-        if tweets.data:
-            tweet_data = []
-            for tweet in tweets.data:
-                tweet_info = {
-                    "tweet_id": tweet.id,
-                    "user_id": tweet.author_id,
-                    "text": tweet.text,
-                    "timestamp": str(tweet.created_at)
-                }
+            if tweets.data:
+                tweet_data = []
+                for tweet in tweets.data:
+                    tweet_info = {
+                        "tweet_id": tweet.id,
+                        "user_id": tweet.author_id,
+                        "text": tweet.text,
+                        "timestamp": str(tweet.created_at)
+                    }
 
-                # Check if tweet already exists in the database
-                if not collection.find_one({"tweet_id": tweet.id}):
-                    collection.insert_one(tweet_info)
-                    tweet_data.append(tweet_info)
+                    # Check if tweet already exists in the database
+                    if not collection.find_one({"tweet_id": tweet.id}):
+                        collection.insert_one(tweet_info)
+                        tweet_data.append(tweet_info)
 
-            last_tweet_id = tweets.data[0].id  # Update last tweet ID
-            print("Fetched and stored", len(tweet_data), "new tweets.")
+                last_tweet_id = tweets.data[0].id  # Update last tweet ID
+                tweets_fetched += len(tweet_data)
+                print(f"Fetched {len(tweet_data)} tweets. Total: {tweets_fetched}")
 
-    except tweepy.TooManyRequests:
-        print("Rate limit reached. Sleeping for 15 minutes...")
-        time.sleep(900)  # Sleep for 15 minutes if rate limit is hit
+            time.sleep(2)  # Short delay to avoid hitting per-minute limits
 
+        except tweepy.TooManyRequests:
+            print("Rate limit reached prematurely. Sleeping for 15 minutes...")
+            time.sleep(900)
+            break  # Stop loop if rate limit is hit early
+
+    print("Rate limit reached. Sleeping for 15 minutes...")
+    time.sleep(900)  # Sleep after 450 requests
+
+# Continuous fetching loop
 while True:
     fetch_tweets()
-    time.sleep(90)  # Adjusted delay to prevent hitting the rate limit
