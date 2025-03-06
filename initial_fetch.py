@@ -2,16 +2,24 @@ import tweepy
 import time
 from pymongo import MongoClient
 
-# Twitter API v2 credentials
+# Twitter API v2 credentials (Directly embedded)
 bearer_token = "AAAAAAAAAAAAAAAAAAAAABzTzgEAAAAAZHHPdG4RJxW3TJss4kY5HpRHt7Q%3DoAaIsBYUxpBGPuGqeSaBVPOqSTdfD7vphAl1HtgxBERSJ67HvQ"
 
-# MongoDB connection (Local instance)
-client_db = MongoClient("mongodb://localhost:27017/")
-db = client_db["civic_complaints"]  # Local database name
-collection = db["tweets"]  # Collection name
+# MongoDB Atlas connection (Direct URI)
+mongo_uri = "mongodb+srv://AkshatDimri:X7G0tooefK1Xyo1y@postdata.1mc5t.mongodb.net/"
+client_db = MongoClient(mongo_uri)
+
+# Select database and collection
+db = client_db["civic_complaints"]
+collection = db["tweets"]
 
 # Authenticate with Twitter client
-twitter_client = tweepy.Client(bearer_token=bearer_token, wait_on_rate_limit=False)
+try:
+    twitter_client = tweepy.Client(bearer_token=bearer_token, wait_on_rate_limit=True)
+    print("✅ Twitter authentication successful!")
+except tweepy.Unauthorized:
+    print("❌ ERROR: Invalid Twitter API credentials. Check bearer token.")
+    exit(1)
 
 last_tweet_id = None
 
@@ -38,8 +46,8 @@ def fetch_tweets():
                         "user_id": tweet.author_id,
                         "text": tweet.text,
                         "timestamp": str(tweet.created_at),
-                        "like_count": tweet.public_metrics["like_count"],   # Number of likes
-                        "retweet_count": tweet.public_metrics["retweet_count"]  # Number of retweets
+                        "like_count": tweet.public_metrics["like_count"],
+                        "retweet_count": tweet.public_metrics["retweet_count"]
                     }
 
                     # Check if tweet already exists in the database
