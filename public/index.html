@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Issue Dashboard</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 4px;
+        }
+        
+        th {
+            text-align: left;
+            padding: 12px 15px;
+            background-color: #f2f2f2;
+            font-weight: 500;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            vertical-align: top;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-style: italic;
+            color: #777;
+        }
+        
+        .vote-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .vote-button {
+            background: none;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .vote-button:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .upvote:hover {
+            color: green;
+        }
+        
+        .downvote:hover {
+            color: red;
+        }
+        
+        .vote-count {
+            font-size: 12px;
+            color: #666;
+            margin-left: 5px;
+        }
+        
+        .refresh-info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+            text-align: right;
+        }
+        
+        .text-cell {
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .text-cell:hover {
+            white-space: normal;
+            overflow: visible;
+        }
+        
+        .severity-high {
+            color: #d73a49;
+            font-weight: bold;
+        }
+        
+        .severity-medium {
+            color: #f66a0a;
+        }
+        
+        .severity-low {
+            color: #2cbe4e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Issue Dashboard</h1>
+        
+        <div id="issues-table-container">
+            <div class="loading">Loading issues...</div>
+        </div>
+        
+        <div class="refresh-info">
+            Data refreshes automatically every 10 minutes.
+            <span id="next-refresh"></span>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initial load
+            fetchIssues();
+            
+            // Set up refresh timer display
+            updateRefreshTimer();
+            
+            // Set up auto refresh (10 minutes)
+            setInterval(() => {
+                fetchIssues();
+                updateRefreshTimer();
+            }, 10 * 60 * 1000);
+        });
+        
+        let refreshTime = new Date();
+        refreshTime.setMinutes(refreshTime.getMinutes() + 10);
+        
+        function updateRefreshTimer() {
+            refreshTime = new Date();
+            refreshTime.setMinutes(refreshTime.getMinutes() + 10);
+            
+            // Update timer every second
+            const timerInterval = setInterval(() => {
+                const now = new Date();
+                const diffMs = refreshTime - now;
+                
+                if (diffMs <= 0) {
+                    clearInterval(timerInterval);
+                    return;
+                }
+                
+                const diffMins = Math.floor(diffMs / 60000);
+                const diffSecs = Math.floor((diffMs % 60000) / 1000);
+                
+                document.getElementById('next-refresh').textContent = 
+                    `Next refresh in ${diffMins}m ${diffSecs}s`;
+            }, 1000);
+        }
+        
+        async function fetchIssues() {
+            try {
+                const response = await fetch('/api/issues');
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch issues');
+                }
+                
+                const issues = await response.json();
+                renderIssuesTable(issues);
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('issues-table-container').innerHTML = 
+                    `<div class="loading">Error loading issues: ${error.message}</div>`;
+            }
+        }
+        
+        function renderIssuesTable(issues) {
+            const tableHtml = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Text</th>
+                            <th>Timestamp</th>
+                            <th>Sentiment</th>
+                            <th>Severity Score</th>
+                            <th>Issue Category</th>
+                            <th>Analysis Timestamp</th>
+                            <th>Vote</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${issues.map(issue => {
+                            const severityClass = getSeverityClass(issue.effective_severity);
+                            return `
+                                <tr data-id="${issue._id}">
+                                    <td class="text-cell">${issue.text || '-'}</td>
+                                    <td>${formatDate(issue.timestamp) || '-'}</td>
+                                    <td>${issue.sentiment || '-'}</td>
+                                    <td class="${severityClass}">${issue.effective_severity.toFixed(1)}</td>
+                                    <td>${issue.issue_category || '-'}</td>
+                                    <td>${formatDate(issue.analysis_timestamp) || '-'}</td>
+                                    <td>
+                                        <div class="vote-buttons">
+                                            <button class="vote-button upvote" onclick="vote('${issue._id}', 'upvote')">▲</button>
+                                            <button class="vote-button downvote" onclick="vote('${issue._id}', 'downvote')">▼</button>
+                                            <span class="vote-count">
+                                                +${issue.upvotes || 0} / -${issue.downvotes || 0}
+                                            </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            document.getElementById('issues-table-container').innerHTML = tableHtml;
+        }
+        
+        function getSeverityClass(score) {
+            if (score >= 7) return 'severity-high';
+            if (score >= 4) return 'severity-medium';
+            return 'severity-low';
+        }
+        
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return dateString;
+            
+            return date.toLocaleString();
+        }
+        
+        async function vote(issueId, voteType) {
+            try {
+                const response = await fetch(`/api/issues/${issueId}/vote`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ voteType })
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to update vote');
+                }
+                
+                // Update the UI immediately without refreshing the entire table
+                const row = document.querySelector(`tr[data-id="${issueId}"]`);
+                if (row) {
+                    const voteCountEl = row.querySelector('.vote-count');
+                    const currentText = voteCountEl.textContent.trim();
+                    const [upvotes, downvotes] = currentText.split('/').map(part => {
+                        return parseInt(part.replace(/[^0-9]/g, '')) || 0;
+                    });
+                    
+                    if (voteType === 'upvote') {
+                        voteCountEl.textContent = `+${upvotes + 1} / -${downvotes}`;
+                    } else {
+                        voteCountEl.textContent = `+${upvotes} / -${downvotes + 1}`;
+                    }
+                    
+                    // Also update severity score (would need to refetch to be accurate in a real app)
+                    // For immediate feedback only
+                    const severityCell = row.querySelector('td:nth-child(4)');
+                    const currentScore = parseFloat(severityCell.textContent);
+                    const newScore = voteType === 'upvote' ? currentScore + 1 : currentScore - 1;
+                    severityCell.textContent = newScore.toFixed(1);
+                    severityCell.className = getSeverityClass(newScore);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`Error: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -106,9 +106,9 @@ def classify_issue(text):
     """
     text = text.lower()
     
-    if any(word in text for word in ['water', 'leak', 'pipe', 'drainage', 'sewage']):
+    if any(word in text for word in ['water', 'leak', 'pipe', 'drainage', 'sewage','flooding']):
         return 'Water'
-    elif any(word in text for word in ['electricity', 'power', 'outage', 'blackout']):
+    elif any(word in text for word in ['electricity', 'power', 'outage', 'blackout','electric']):
         return 'Electricity'
     elif any(word in text for word in ['road', 'pothole', 'traffic', 'signal', 'jam']):
         return 'Roads'
@@ -121,7 +121,7 @@ def classify_issue(text):
 
 def process_tweets_gpu_batch(tweets, bert_model=None, tokenizer=None, batch_size=16):
     """
-    Process a batch of tweets using GPU acceleration if available
+    Processing a batch of tweets using GPU acceleration if available
     """
     texts = [tweet.get("text", "") for tweet in tweets]
     
@@ -315,3 +315,203 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+def detect_trolls(tweet_text):
+    """
+    Uses regex patterns to detect potential troll content in tweets.
+    Returns a dictionary with detection results.
+    
+    Parameters:
+    tweet_text (str): The text content of the tweet to analyze
+    
+    Returns:
+    dict: Contains 'is_troll' boolean flag and 'troll_indicators' list of matched patterns
+    """
+    # Convert to lowercase for case-insensitive matching
+    text = tweet_text.lower()
+    
+    # Regex patterns for different troll indicators
+    patterns = {
+        'excessive_caps': r'[A-Z]{5,}',  # Five or more consecutive capital letters
+        'repeated_characters': r'(\w)\1{4,}',  # Character repeated 5+ times (like "haaaaa", "!!!!!!")
+        'excessive_punctuation': r'[!?]{3,}',  # Three or more consecutive exclamation/question marks
+        'fake_govt_claim': r'(?i)(official|govt|government).{0,20}(announcement|notice|alert)',  # Fake official claims
+        'inflammatory_language': r'\b(idiots?|morons?|stupid|dumb|useless|incompetent)\b.{0,30}\b(government|officials?|mayor|council)\b',
+        'excessive_hashtags': r'(#\w+){5,}',  # Five or more hashtags
+        'spam_indicators': r'(?i)(click here|free money|lottery|prize|won|winner|discount code)',
+        'bot_patterns': r'(?i)(auto-generated|bot response|automated message)',
+        'offensive_slurs': r'\b(f+[\W_]*u+[\W_]*c+[\W_]*k+|b+[\W_]*i+[\W_]*t+[\W_]*c+[\W_]*h+|sh+[\W_]*i+[\W_]*t+)\b'
+    }
+    
+    # Detect matches for each pattern
+    matches = {}
+    for pattern_name, regex in patterns.items():
+        matches[pattern_name] = bool(re.search(regex, tweet_text))
+    
+    # Determine if the tweet is likely from a troll
+    # A tweet is considered a troll if it matches at least 2 patterns
+    troll_indicators = [name for name, matched in matches.items() if matched]
+    is_troll = len(troll_indicators) >= 2
+    
+    return {
+        'is_troll': is_troll,
+        'troll_indicators': troll_indicators,
+        'troll_score': len(troll_indicators) / len(patterns) * 10  # Score from 0-10
+    }
+
+# Modified version of process_tweets_gpu_batch that includes troll detection
+def process_tweets_gpu_batch_with_trolls(tweets, bert_model=None, tokenizer=None, batch_size=16):
+    """
+    Processing a batch of tweets with troll detection while preserving original functionality
+    """
+    # First get the original processed tweets
+    processed_tweets = process_tweets_gpu_batch(tweets, bert_model, tokenizer, batch_size)
+    
+    # Now add troll analysis to each processed tweet
+    for processed_tweet in processed_tweets:
+        tweet_text = processed_tweet.get("text", "")
+        troll_analysis = detect_trolls(tweet_text)
+        processed_tweet["troll_analysis"] = troll_analysis
+    
+    return processed_tweets
+
+# Function to filter out troll tweets (can be called separately without modifying original pipeline)
+def filter_troll_tweets():
+    """
+    Identifies troll tweets in the analyzed_tweets collection and marks them
+    """
+    analyzed_tweets = list(target_collection.find({"troll_analysis": {"$exists": False}}))
+    
+    for tweet in analyzed_tweets:
+        tweet_text = tweet.get("text", "")
+        troll_analysis = detect_trolls(tweet_text)
+        
+        # Update the tweet with troll analysis
+        target_collection.update_one(
+            {"_id": tweet["_id"]},
+            {"$set": {"troll_analysis": troll_analysis}}
+        )
+        
+        # If it's a troll, also mark it in the source collection if needed
+        if troll_analysis['is_troll']:
+            tweet_id = tweet.get("tweet_id")
+            if tweet_id:
+                source_collection.update_one(
+                    {"tweet_id": tweet_id},
+                    {"$set": {"is_troll": True, "troll_indicators": troll_analysis['troll_indicators']}}
+                )
+    
+    return len(analyzed_tweets)
+
+# Alternative process_tweets function that incorporates troll detection
+def process_tweets_with_troll_detection(batch_size=100, bert_model=None, tokenizer=None):
+    """
+    Process tweets with troll detection while preserving the original process_tweets function
+    """
+    # Find tweets that haven't been analyzed yet
+    unprocessed_tweets = list(source_collection.find(
+        {"processed": {"$ne": True}}
+    ).limit(batch_size))
+    
+    if not unprocessed_tweets:
+        print("No new tweets to process")
+        return 0
+    
+    # Process tweets with the enhanced function that includes troll detection
+    processed_tweets = process_tweets_gpu_batch_with_trolls(
+        unprocessed_tweets, 
+        bert_model=bert_model, 
+        tokenizer=tokenizer
+    )
+    
+    # Bulk insert to target collection
+    if processed_tweets:
+        target_collection.insert_many(processed_tweets)
+        
+        # Mark tweets as processed in source collection
+        for tweet in unprocessed_tweets:
+            source_collection.update_one(
+                {"_id": tweet["_id"]},
+                {"$set": {"processed": True}}
+            )
+        
+        print(f"Processed and stored {len(processed_tweets)} tweets with troll detection")
+    
+    return len(processed_tweets)
+
+# Create a separate collection for trolls
+def setup_troll_collection():
+    """Creates a separate collection for tracking troll tweets"""
+    troll_db = client_db["PostNLP_Data"]
+    troll_collection = troll_db["troll_tweets"]
+    
+    # Create indexes
+    troll_collection.create_index("tweet_id", unique=True)
+    troll_collection.create_index("troll_score")
+    
+    print("Troll collection setup complete")
+    return troll_collection
+
+# Function to export only troll tweets to a separate collection
+def export_troll_tweets():
+    """
+    Finds all tweets marked as trolls and exports them to the troll collection
+    """
+    troll_collection = setup_troll_collection()
+    
+    # Find all tweets with troll analysis where is_troll is true
+    troll_tweets = target_collection.find(
+        {"troll_analysis.is_troll": True}
+    )
+    
+    count = 0
+    for tweet in troll_tweets:
+        # Create a document for the troll collection
+        troll_doc = {
+            "tweet_id": tweet.get("tweet_id"),
+            "user_id": tweet.get("user_id"),
+            "text": tweet.get("text"),
+            "timestamp": tweet.get("timestamp"),
+            "troll_analysis": tweet.get("troll_analysis"),
+            "severity_score": tweet.get("severity_score"),
+            "issue_category": tweet.get("issue_category"),
+            "export_timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        
+        # Insert or update in troll collection
+        troll_collection.update_one(
+            {"tweet_id": tweet.get("tweet_id")},
+            {"$set": troll_doc},
+            upsert=True
+        )
+        count += 1
+    
+    print(f"Exported {count} troll tweets")
+    return count
+
+# Example of how to use these functions (can be called from a separate script)
+def troll_analysis_workflow():
+    """
+    Complete workflow for troll analysis without modifying the original pipeline
+    """
+    print("Starting troll analysis workflow...")
+    
+    # Setup the troll collection
+    setup_troll_collection()
+    
+    # Run either approach:
+    
+    # Option 1: Process new tweets with troll detection
+    # Uncomment to use this approach:
+    # processed_count = process_tweets_with_troll_detection(batch_size=100)
+    # print(f"Processed {processed_count} new tweets with troll detection")
+    
+    # Option 2: Process existing analyzed tweets
+    analyzed_count = filter_troll_tweets()
+    print(f"Added troll analysis to {analyzed_count} existing tweets")
+    
+    # Export troll tweets to dedicated collection
+    export_count = export_troll_tweets()
+    print(f"Exported {export_count} troll tweets to dedicated collection")
+    
+    print("Troll analysis workflow completed!")
