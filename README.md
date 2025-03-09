@@ -57,7 +57,7 @@ node server.js
 - **Backend:** Python (Tweepy, NLTK, PyTorch)
 - **Database:** MongoDB (Atlas)
 - **NLP:** VADER Sentiment Analysis, Keyword-based classification
-- **Frontend:** React/Next.js
+- **Frontend:** React/HTML
 - **Server:** Node.js, Express
 
 ## 🔮 Future Prospects
