@@ -1,0 +1,13 @@
+tweepy
+pymongo
+nltk
+torch
+numpy
+pandas
+scikit-learn
+transformers
+flask
+fastapi
+uvicorn
+requests
+dotenv
