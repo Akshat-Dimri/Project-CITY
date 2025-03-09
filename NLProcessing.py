@@ -316,6 +316,8 @@ def main():
 if __name__ == "__main__":
     main()
 
+    #Using regex, for troll detection 
+
 def detect_trolls(tweet_text):
     """
     Uses regex patterns to detect potential troll content in tweets.
@@ -332,9 +334,8 @@ def detect_trolls(tweet_text):
     
     # Regex patterns for different troll indicators
     patterns = {
-        'excessive_caps': r'[A-Z]{5,}',  # Five or more consecutive capital letters
         'repeated_characters': r'(\w)\1{4,}',  # Character repeated 5+ times (like "haaaaa", "!!!!!!")
-        'excessive_punctuation': r'[!?]{3,}',  # Three or more consecutive exclamation/question marks
+        'excessive_punctuation': r'[!?$*()<>]{5,}',  # Three or more consecutive exclamation/question marks
         'fake_govt_claim': r'(?i)(official|govt|government).{0,20}(announcement|notice|alert)',  # Fake official claims
         'inflammatory_language': r'\b(idiots?|morons?|stupid|dumb|useless|incompetent)\b.{0,30}\b(government|officials?|mayor|council)\b',
         'excessive_hashtags': r'(#\w+){5,}',  # Five or more hashtags
