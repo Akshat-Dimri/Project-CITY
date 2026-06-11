@@ -98,9 +98,8 @@ def fetch_tweets():
     logging.info(f"✅ Saved {saved} new tweet(s).")
 
 # ── Run ────────────────────────────────────────────────────────────────────────
+# ── Run (single pass — scheduler handles the loop externally) ────────────────
 if __name__ == "__main__":
-    logging.info(f"🚀 Tweet fetcher starting | query: {SEARCH_QUERY}")
-    while True:
-        fetch_tweets()
-        logging.info("😴 Sleeping 15 min (rate limit cycle)...")
-        time.sleep(900)
+    logging.info(f"🚀 Tweet fetcher (single pass) | query: {SEARCH_QUERY}")
+    fetch_tweets()
+    logging.info("✅ Fetch pass complete. Exiting.")

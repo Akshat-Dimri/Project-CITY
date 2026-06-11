@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
+const scheduler = require('./scheduler');
 
 const app = express();
 const PORT = process.env.PORT || 5500;
@@ -79,7 +80,10 @@ function fmtTweet(t) {
 }
 
 // ─── API: Health ──────────────────────────────────────────────────────────────
-app.get('/api/health', (req, res) => res.json(health));
+app.get("/api/health", (req, res) => res.json(health));
+
+// ─── API: Pipeline status ────────────────────────────────────────────────────
+app.get("/api/pipeline/status", (req, res) => res.json(scheduler.state));
 
 // ─── API: Get all tweets ──────────────────────────────────────────────────────
 app.get('/api/tweets', async (req, res) => {
@@ -166,3 +170,5 @@ app.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
 });
+// Start pipeline scheduler
+scheduler.start();

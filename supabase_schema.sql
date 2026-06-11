@@ -1,3 +1,5 @@
+-- Run this in your Supabase SQL editor to set up the two required tables.
+
 -- Raw tweets (from Twitter fetcher)
 create table if not exists raw_tweets (
   id           bigserial primary key,
