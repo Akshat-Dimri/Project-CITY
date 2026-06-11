@@ -125,6 +125,8 @@ def process_tweets():
         logging.error(f"❌ Failed to fetch raw tweets: {e}")
         return
 
+    logging.info(f"📥 Fetched {len(raw_tweets)} raw tweets from Supabase")
+
     for tweet in raw_tweets:
         tweet_id = str(tweet.get("tweet_id"))
 
@@ -132,10 +134,10 @@ def process_tweets():
         try:
             exists = db.table("analyzed_tweets").select("id").eq("tweet_id", tweet_id).execute()
             if exists.data:
+                logging.debug(f"⏭️  Already processed: {tweet_id}")
                 continue
         except Exception as e:
-            logging.warning(f"⚠️  Check-exists failed for {tweet_id}: {e}")
-            continue
+            logging.warning(f"⚠️  Check-exists failed for {tweet_id}: {e} — processing anyway")
 
         logging.info(f"🔄 Processing {tweet_id}...")
         try:

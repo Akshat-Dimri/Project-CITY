@@ -24,7 +24,7 @@ const ACTIVE_TIMEOUT    = 24 * 60 * 60 * 1000;  // 24 hours no new tweets → do
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-// ─── Exported state (server.js reads this for /api/pipeline/status) ──────────
+//  Exported state (server.js reads this for /api/pipeline/status) ─
 const state = {
   mode:          'DORMANT',   // 'DORMANT' | 'ACTIVE'
   fetcherPid:    null,
@@ -38,7 +38,7 @@ let fetcherProc = null;
 let nlpProc     = null;
 let timer       = null;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+//  Helpers 
 function log(msg) {
   console.log(`[scheduler] ${new Date().toISOString()} — ${msg}`);
 }
@@ -47,11 +47,11 @@ async function countRawTweets() {
   const { count, error } = await supabase
     .from('raw_tweets')
     .select('*', { count: 'exact', head: true });
-  if (error) { log(`⚠️  count error: ${error.message}`); return null; }
+  if (error) { log(`  count error: ${error.message}`); return null; }
   return count;
 }
 
-// ─── Process management ───────────────────────────────────────────────────────
+//  Process management ─
 function spawnPython(script, label) {
   const proc = spawn('python', [script], {
     env: { ...process.env },
@@ -62,7 +62,7 @@ function spawnPython(script, label) {
   proc.stderr.on('data', d => log(`[${label}:err] ${d.toString().trim()}`));
   proc.on('exit', code => log(`[${label}] exited (code ${code})`));
 
-  log(`▶ Started ${label} (pid ${proc.pid})`);
+  log(` Started ${label} (pid ${proc.pid})`);
   return proc;
 }
 
@@ -72,7 +72,7 @@ function killProc(proc, label) {
   log(`⏹ Stopped ${label}`);
 }
 
-// ─── State transitions ────────────────────────────────────────────────────────
+//  State transitions ──
 function goActive() {
   if (state.mode === 'ACTIVE') return;
   log('🟢 → ACTIVE');
@@ -102,7 +102,7 @@ function goDormant() {
   timer = setInterval(dormantCycle, DORMANT_INTERVAL);
 }
 
-// ─── Cycles ───────────────────────────────────────────────────────────────────
+//  Cycles ─
 
 // Run a single fetch pass and return whether any new tweets were found
 async function runFetchPass() {
@@ -126,21 +126,21 @@ async function runFetchPass() {
   const found = after > before;
   if (found) {
     state.lastNewTweet = new Date().toISOString();
-    log(`✅ ${after - before} new tweet(s) found`);
+    log(` ${after - before} new tweet(s) found`);
   } else {
-    log('ℹ️  No new tweets this pass');
+    log('  No new tweets this pass');
   }
   return found;
 }
 
 async function dormantCycle() {
-  log('💤 Dormant check...');
+  log(' Dormant check...');
   const found = await runFetchPass();
   if (found) goActive();
 }
 
 async function activeCycle() {
-  log('🔄 Active check...');
+  log(' Active check...');
   const found = await runFetchPass();
 
   if (found) {
@@ -148,16 +148,16 @@ async function activeCycle() {
   } else {
     state.cyclesSinceNew++;
     const hoursIdle = (state.cyclesSinceNew * ACTIVE_INTERVAL) / 3600000;
-    log(`⏳ No new tweets for ${hoursIdle.toFixed(1)}h`);
+    log(` No new tweets for ${hoursIdle.toFixed(1)}h`);
     if (state.cyclesSinceNew * ACTIVE_INTERVAL >= ACTIVE_TIMEOUT) {
       goDormant();
     }
   }
 }
 
-// ─── Boot ─────────────────────────────────────────────────────────────────────
+//  Boot 
 function start() {
-  log('🚀 Scheduler starting in DORMANT mode');
+  log(' Scheduler starting in DORMANT mode');
   // Run an immediate dormant check on boot, then settle into interval
   dormantCycle();
   timer = setInterval(dormantCycle, DORMANT_INTERVAL);

@@ -12,19 +12,19 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ─── Supabase Client ───────────────────────────────────────────────────────────
+//  Supabase Client ──
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('❌ SUPABASE_URL or SUPABASE_KEY missing in .env');
+  console.error(' SUPABASE_URL or SUPABASE_KEY missing in .env');
   process.exit(1);
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ─── Config Health State ──────────────────────────────────────────────────────
-// Tracks whether credentials are working; doesn't crash the server if they fail.
+//  config health
+//  to track whether credentials are working; doesn't crash the server when fail.
 const health = {
   supabase: { ok: false, lastCheck: null, error: null },
   twitter: { ok: false, lastCheck: null, error: null }
@@ -35,20 +35,20 @@ async function checkSupabaseHealth() {
     const { error } = await supabase.from('analyzed_tweets').select('id').limit(1);
     health.supabase.ok = !error;
     health.supabase.error = error ? error.message : null;
-    if (error) console.warn(`⚠️  Supabase issue: ${error.message}`);
+    if (error) console.warn(`  Supabase issue: ${error.message}`);
   } catch (e) {
     health.supabase.ok = false;
     health.supabase.error = e.message;
-    console.warn(`⚠️  Supabase unreachable: ${e.message}`);
+    console.warn(`  Supabase unreachable: ${e.message}`);
   }
   health.supabase.lastCheck = new Date().toISOString();
 }
 
-// Check on start + every 10 minutes
+// check start + every 10 minutes
 checkSupabaseHealth();
 setInterval(checkSupabaseHealth, 10 * 60 * 1000);
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+//  Helpers 
 function withinRadius(uLat, uLon, iLat, iLon, km = 5) {
   const toRad = d => d * Math.PI / 180;
   const R = 6371;
@@ -79,13 +79,13 @@ function fmtTweet(t) {
   };
 }
 
-// ─── API: Health ──────────────────────────────────────────────────────────────
+//  API: Health ──
 app.get("/api/health", (req, res) => res.json(health));
 
-// ─── API: Pipeline status ────────────────────────────────────────────────────
+//  API: Pipeline status ─
 app.get("/api/pipeline/status", (req, res) => res.json(scheduler.state));
 
-// ─── API: Get all tweets ──────────────────────────────────────────────────────
+//  API: Get all tweets 
 app.get('/api/tweets', async (req, res) => {
   const { data, error } = await supabase
     .from('analyzed_tweets')
@@ -97,7 +97,7 @@ app.get('/api/tweets', async (req, res) => {
   res.json(data.map(fmtTweet));
 });
 
-// ─── API: Single tweet ────────────────────────────────────────────────────────
+//  API: Single tweet ──
 app.get('/api/tweets/:id', async (req, res) => {
   const { data, error } = await supabase
     .from('analyzed_tweets')
@@ -109,7 +109,7 @@ app.get('/api/tweets/:id', async (req, res) => {
   res.json(fmtTweet(data));
 });
 
-// ─── API: Vote ────────────────────────────────────────────────────────────────
+//  API: Vote ─
 app.post('/api/tweets/:id/vote', async (req, res) => {
   const { type, userLat, userLon } = req.body;
   if (!['up', 'down'].includes(type)) return res.status(400).json({ error: 'Invalid vote type' });
@@ -153,7 +153,7 @@ app.post('/api/tweets/:id/vote', async (req, res) => {
   res.json(fmtTweet(updated));
 });
 
-// ─── API: Issues (alias used by frontend map) ─────────────────────────────────
+//  API: Issues 
 app.get('/api/issues', async (req, res) => {
   const { data, error } = await supabase
     .from('analyzed_tweets')
@@ -165,10 +165,10 @@ app.get('/api/issues', async (req, res) => {
   res.json(data.map(fmtTweet));
 });
 
-// ─── Start ────────────────────────────────────────────────────────────────────
+//  Start ──
 app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
-  console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
+  console.log(` Server running at http://localhost:${PORT}`);
+  console.log(` Health check: http://localhost:${PORT}/api/health`);
 });
 // Start pipeline scheduler
 scheduler.start();

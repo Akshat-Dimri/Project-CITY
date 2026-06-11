@@ -1,89 +1,197 @@
-# Project City — Civic Issues Tracker
+# Project City
 
-A full-stack portal that pulls civic complaint tweets, runs NLP analysis, and displays them on a dashboard with voting and severity ranking.
+Project City is a civic issue monitoring platform that collects public complaints from social media, analyzes them using NLP techniques, and presents them through a dashboard with severity ranking, issue categorization, and community voting.
 
-## Stack
+Originally developed as part of the B.Tech Engineering Physics program at NIT Hamirpur.
 
-| Layer | Tech |
-|---|---|
-| Tweet fetch | Python + Tweepy |
-| NLP pipeline | Python — TextBlob, DistilBERT (HuggingFace), troll detection |
-| Database | Supabase (PostgreSQL) |
-| Backend API | Node.js + Express |
-| Frontend | Vanilla HTML/CSS/JS |
-| Orchestrator | Python + Textual TUI |
+## Features
 
-## Structure
+* Automated collection of civic complaint tweets
+* NLP-based sentiment and issue analysis
+* Severity scoring and prioritization
+* Issue categorization
+* Community voting system
+* Interactive dashboard
+* Automated pipeline orchestration
 
+## Technology Stack
+
+| Layer            | Technology                 |
+| ---------------- | -------------------------- |
+| Tweet Collection | Python, Tweepy             |
+| NLP Processing   | TextBlob, DistilBERT, NLTK |
+| Database         | Supabase (PostgreSQL)      |
+| Backend API      | Node.js, Express           |
+| Frontend         | HTML, CSS, JavaScript      |
+| Orchestration    | Python, Textual            |
+
+## Architecture
+
+```text
+Twitter API
+    |
+    v
+Tweet Fetcher
+    |
+    v
+raw_tweets (Supabase)
+    |
+    v
+NLP Processing Pipeline
+    |
+    v
+analyzed_tweets (Supabase)
+    |
+    v
+Express API
+    |
+    v
+Dashboard
 ```
+
+## Repository Structure
+
+```text
 project_city/
 ├── backend/
-│   ├── server.js          # Express API (Supabase-backed)
+│   ├── server.js
+│   ├── scheduler.js
 │   ├── package.json
-│   └── public/index.html  # Dashboard frontend
+│   └── public/
+│       └── index.html
 ├── nlp_pipeline/
-│   ├── initial_fetch.py   # Pulls tweets from Twitter → Supabase
-│   ├── NLProcessing.py    # Sentiment + severity + troll detection
+│   ├── initial_fetch.py
+│   ├── NLProcessing.py
 │   └── requirements.txt
-├── orchestrator.py         # TUI to run all components together
-├── supabase_schema.sql     # Run this once in Supabase SQL editor
+├── orchestrator.py
+├── supabase_schema.sql
+├── render.yaml
 ├── .env.example
 └── .gitignore
 ```
 
 ## Setup
 
-### 1. Supabase
-1. Create a project at [supabase.com](https://supabase.com)
-2. Run `supabase_schema.sql` in the SQL editor
-3. Copy your project URL and anon key
+### 1. Clone the Repository
 
-### 2. Twitter / X
-1. Get a Bearer Token from [developer.x.com](https://developer.x.com)
-2. Basic (free) tier works for search
-
-### 3. Environment
 ```bash
-cp .env.example .env
-# Fill in SUPABASE_URL, SUPABASE_KEY, TWITTER_BEARER_TOKEN
+git clone <repository-url>
+cd project_city
 ```
 
-### 4. Install
-```bash
-# Node backend
-cd backend && npm install
+### 2. Configure Supabase
 
-# Python pipeline
+1. Create a Supabase project.
+2. Run `supabase_schema.sql` in the SQL Editor.
+3. Disable RLS for the required tables if running locally.
+4. Copy the project URL and anon key.
+
+### 3. Configure Environment Variables
+
+Create a `.env` file from `.env.example`.
+
+```env
+SUPABASE_URL=
+SUPABASE_KEY=
+TWITTER_BEARER_TOKEN=
+TWITTER_QUERY=
+PORT=5500
+```
+
+### 4. Install Dependencies
+
+Backend:
+
+```bash
+cd backend
+npm install
+```
+
+Python:
+
+```bash
 pip install -r nlp_pipeline/requirements.txt
+pip install textual
 ```
 
-### 5. Run
+## Running the Project
 
-**All at once (TUI):**
+Start all components through the orchestrator:
+
 ```bash
-pip install textual
 python orchestrator.py
 ```
 
-**Individually:**
-```bash
-# Terminal 1 — tweet fetcher
-python nlp_pipeline/initial_fetch.py
+Services launched:
 
-# Terminal 2 — NLP processor
-python nlp_pipeline/NLProcessing.py
+* Tweet Fetcher
+* NLP Processor
+* Backend API
+* Frontend Dashboard
 
-# Terminal 3 — backend + dashboard
-cd backend && node server.js
-# Dashboard at http://localhost:5500
+Dashboard:
+
+```text
+http://localhost:5500
 ```
 
-## Health Check
+## NLP Pipeline
 
-`GET /api/health` returns the live status of Supabase and Twitter connections without taking the portal down.
+The processing pipeline performs:
 
-## My Contribution
+* Text cleaning
+* Sentiment analysis using TextBlob
+* Issue classification
+* Severity estimation
+* DistilBERT-based labeling
+* Troll and spam detection
 
-- Wrote the NLP pipeline (`NLProcessing.py`) — sentiment analysis, severity scoring, issue classification, troll detection
-- Wrote the tweet fetcher (`initial_fetch.py`) and orchestrator
-- Frontend built with AI tools; product decisions (category taxonomy, severity formula, geo-voting logic) made by me
+### Severity Score
+
+```text
+severity = (1 - sentiment) * 5 + min((likes + retweets) / 100, 5)
+```
+
+Score range:
+
+```text
+0 - 10
+```
+
+Higher values indicate higher urgency.
+
+### Issue Categories
+
+* Roads
+* Water
+* Electricity
+* Waste
+* Other
+
+## API Endpoints
+
+| Method | Endpoint               | Description               |
+| ------ | ---------------------- | ------------------------- |
+| GET    | `/api/health`          | Service health            |
+| GET    | `/api/pipeline/status` | Pipeline status           |
+| GET    | `/api/tweets`          | All analyzed tweets       |
+| GET    | `/api/tweets/:id`      | Single tweet              |
+| POST   | `/api/tweets/:id/vote` | Vote on issue             |
+| GET    | `/api/issues`          | Issues sorted by severity |
+
+## Deployment
+
+The project is configured for deployment on Render.
+
+Required environment variables:
+
+```env
+SUPABASE_URL
+SUPABASE_KEY
+TWITTER_BEARER_TOKEN
+PORT
+```
+
+## License
+
+MIT License

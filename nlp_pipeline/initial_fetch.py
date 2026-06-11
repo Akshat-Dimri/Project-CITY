@@ -1,4 +1,4 @@
-# ── Imports ───────────────────────────────────────────────────────────────────
+#  Imports ─
 import os
 import time
 import logging
@@ -8,14 +8,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Logging ───────────────────────────────────────────────────────────────────
+#  Logging ─
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 
-# ── Config ────────────────────────────────────────────────────────────────────
+#  Config 
 BEARER_TOKEN  = os.getenv("TWITTER_BEARER_TOKEN")
 SUPABASE_URL  = os.getenv("SUPABASE_URL")
 SUPABASE_KEY  = os.getenv("SUPABASE_KEY")
@@ -28,7 +28,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     logging.error("❌ SUPABASE_URL or SUPABASE_KEY not set in .env")
     raise SystemExit(1)
 
-# ── Clients ────────────────────────────────────────────────────────────────────
+#  Clients 
 db = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 try:
@@ -38,7 +38,7 @@ except Exception as e:
     logging.error(f"❌ Twitter auth failed: {e}")
     raise SystemExit(1)
 
-# ── Fetch logic ────────────────────────────────────────────────────────────────
+#  Fetch logic 
 last_tweet_id = None
 
 def fetch_tweets():
@@ -97,8 +97,8 @@ def fetch_tweets():
     last_tweet_id = resp.data[0].id
     logging.info(f"✅ Saved {saved} new tweet(s).")
 
-# ── Run ────────────────────────────────────────────────────────────────────────
-# ── Run (single pass — scheduler handles the loop externally) ────────────────
+#  Run 
+#  Run (single pass — scheduler handles the loop externally) 
 if __name__ == "__main__":
     logging.info(f"🚀 Tweet fetcher (single pass) | query: {SEARCH_QUERY}")
     fetch_tweets()

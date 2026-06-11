@@ -1,10 +1,14 @@
 """
-orchestrator.py — starts all four project components in a TUI dashboard.
-Uses Textual for the terminal UI.
+orchestrator.py — 2x2 TUI dashboard, terminator-style layout.
+
+Keybindings:
+  f  — skip fetcher, jump straight to NLP
+  q  — quit
 """
 import os
 import asyncio
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Header, Footer, Static, Log
 
@@ -18,57 +22,132 @@ SCRIPTS = {
                       "--directory", os.path.join(BASE, "frontend", "public")],
 }
 
+FETCHER_ERROR_PHRASES = ["402", "Payment Required", "credits", "Unauthorized", "401", "ERROR"]
+
+PANEL_COLORS = {
+    "Tweet Fetcher": "#00aaff",   # blue
+    "NLP Processor": "#00cc66",   # green
+    "Node Server":   "#ff9900",   # amber
+    "Frontend":      "#cc44ff",   # purple
+}
+
 def to_id(name: str) -> str:
     return name.replace(' ', '-').lower()
 
 
 class Panel(Vertical):
-    def __init__(self, name, *args, **kwargs):
+    def __init__(self, script_name, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.name = name
-        self.pid  = to_id(name)
+        self.script_name = script_name
+        self.pid = to_id(script_name)
 
     def compose(self) -> ComposeResult:
-        yield Static(f"[⚪] {self.name}", classes="status", id=f"s-{self.pid}")
-        yield Log(id=f"l-{self.pid}")
-
-    def on_mount(self):
-        self.query_one(f"#l-{self.pid}", Log).write_line("waiting...")
+        yield Static(
+            f" ● {self.script_name.upper()}  [dim]waiting[/dim]",
+            id=f"s-{self.pid}",
+            classes="bar"
+        )
+        yield Log(id=f"l-{self.pid}", auto_scroll=True)
 
     def set_status(self, state: str):
-        icon = {"running": "🟢", "stopped": "🔴"}.get(state, "⚪")
-        self.query_one(f"#s-{self.pid}", Static).update(f"[{icon}] {self.name}")
+        icons = {
+            "running": ("●", "green",  "RUNNING"),
+            "stopped": ("■", "red",    "STOPPED"),
+            "skipped": ("▶", "yellow", "SKIPPED"),
+            "error":   ("▲", "red",    "ERROR"),
+            "waiting": ("○", "white",  "WAITING"),
+        }
+        dot, color, label = icons.get(state, ("○", "white", "WAITING"))
+        self.query_one(f"#s-{self.pid}", Static).update(
+            f" [{color}]{dot}[/{color}] {self.script_name.upper()}  [dim]{label}[/dim]"
+        )
 
     def log(self, line: str):
         w = self.query_one(f"#l-{self.pid}", Log)
-        if w.line_count == 1 and "waiting" in w._lines[0]:
-            w.clear()
         w.write_line(line)
 
 
 class Orchestrator(App):
-    CSS = """
-    .status { padding: 1; background: $boost; color: yellow; content-align: center middle; }
-    Log { height: 1fr; }
-    Horizontal > Panel { width: 1fr; }
+    BINDINGS = [
+        Binding("f", "skip_fetcher", "Skip Fetcher", show=True),
+        Binding("q", "quit",         "Quit",         show=True),
+    ]
+
+    CSS = f"""
+    Screen {{
+        background: #0a0a0a;
+    }}
+
+    Header {{
+        background: #111111;
+        color: #888888;
+        height: 1;
+        dock: top;
+    }}
+
+    Footer {{
+        background: #111111;
+        color: #555555;
+        height: 1;
+        dock: bottom;
+    }}
+
+    /* 2x2 grid */
+    #row-top, #row-bot {{
+        height: 1fr;
+    }}
+
+    Panel {{
+        border: solid #2a2a2a;
+        margin: 0;
+        padding: 0;
+    }}
+
+    /* Per-panel accent colors on the title bar */
+    #tweet-fetcher .bar {{ background: #001a2e; color: {PANEL_COLORS["Tweet Fetcher"]}; }}
+    #nlp-processor .bar {{ background: #001a0f; color: {PANEL_COLORS["NLP Processor"]}; }}
+    #node-server   .bar {{ background: #1a1000; color: {PANEL_COLORS["Node Server"]};   }}
+    #frontend      .bar {{ background: #110022; color: {PANEL_COLORS["Frontend"]};      }}
+
+    .bar {{
+        height: 1;
+        padding: 0 1;
+        text-style: bold;
+    }}
+
+    Log {{
+        height: 1fr;
+        background: #0d0d0d;
+        color: #aaaaaa;
+        scrollbar-size: 1 1;
+        scrollbar-color: #333333;
+        text-style: none;
+        padding: 0 1;
+    }}
+
+    /* Small text via padding trick — Textual doesn't support font-size
+       but keeping padding tight gives a dense feel */
     """
 
     def __init__(self):
         super().__init__()
-        self.nlp_ready  = asyncio.Event()
-        self.node_ready = asyncio.Event()
+        self.nlp_ready   = asyncio.Event()
+        self.node_ready  = asyncio.Event()
+        self._fetcher_proc = None
 
     def compose(self) -> ComposeResult:
-        yield Header()
-        with Horizontal():
-            for name in SCRIPTS:
-                yield Panel(name, id=to_id(name))
+        yield Header(show_clock=True)
+        with Vertical():
+            with Horizontal(id="row-top"):
+                yield Panel("Tweet Fetcher", id="tweet-fetcher")
+                yield Panel("NLP Processor", id="nlp-processor")
+            with Horizontal(id="row-bot"):
+                yield Panel("Node Server",   id="node-server")
+                yield Panel("Frontend",      id="frontend")
         yield Footer()
 
     async def on_mount(self):
-        asyncio.create_task(self.run_script(
-            "Tweet Fetcher", SCRIPTS["Tweet Fetcher"],
-            trigger=self.nlp_ready, trigger_phrase="Rate limit"))
+        asyncio.create_task(self.run_fetcher())
 
         asyncio.create_task(self.run_script(
             "NLP Processor", SCRIPTS["NLP Processor"],
@@ -82,6 +161,49 @@ class Orchestrator(App):
         asyncio.create_task(self.run_script(
             "Frontend", SCRIPTS["Frontend"]))
 
+    # ── Fetcher with auto-bypass ──────────────────────────────────────────────
+    async def run_fetcher(self):
+        panel = self.query_one("#tweet-fetcher", Panel)
+        panel.set_status("running")
+
+        proc = await asyncio.create_subprocess_exec(
+            *SCRIPTS["Tweet Fetcher"],
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT
+        )
+        self._fetcher_proc = proc
+        auto_bypassed = False
+
+        async for raw in proc.stdout:
+            line = raw.decode(errors="ignore").rstrip()
+            panel.log(line)
+            if not auto_bypassed and any(p in line for p in FETCHER_ERROR_PHRASES):
+                panel.log("⚠  API error — auto-skipping to NLP")
+                panel.set_status("error")
+                auto_bypassed = True
+                self.nlp_ready.set()
+                self.node_ready.set()
+
+        await proc.wait()
+        if not auto_bypassed:
+            panel.set_status("stopped")
+            self.nlp_ready.set()
+            self.node_ready.set()
+
+    # ── Manual bypass: F key ──────────────────────────────────────────────────
+    def action_skip_fetcher(self):
+        panel = self.query_one("#tweet-fetcher", Panel)
+        if self.nlp_ready.is_set():
+            panel.log("ℹ  Already past fetcher stage")
+            return
+        if self._fetcher_proc and self._fetcher_proc.returncode is None:
+            self._fetcher_proc.terminate()
+        panel.log("▶  Manually skipped — using existing Supabase data")
+        panel.set_status("skipped")
+        self.nlp_ready.set()
+        self.node_ready.set()
+
+    # ── Generic runner ────────────────────────────────────────────────────────
     async def run_script(self, name, cmd, wait=None, trigger=None, trigger_phrase=None):
         panel = self.query_one(f"#{to_id(name)}", Panel)
         if wait:

@@ -1,4 +1,5 @@
--- Run this in your Supabase SQL editor to set up the two required tables.
+-- version 2 : updated from MONGODB --
+-- schema code --
 
 -- Raw tweets (from Twitter fetcher)
 create table if not exists raw_tweets (
