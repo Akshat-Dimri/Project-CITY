@@ -1,101 +1,89 @@
-# C.I.T.Y. – Civic Issues Tracking for You
-*An AI-powered system for real-time civic complaint tracking & analysis with blockchain integration.*
+# Project City — Civic Issues Tracker
 
-## 🚀 Project Overview
-C.I.T.Y. is a civic issue tracking system that fetches complaints from *Twitter* using APIs, processes them using *NLP & sentiment analysis*, prioritizes them based on severity, and stores records immutably on blockchain.
+A full-stack portal that pulls civic complaint tweets, runs NLP analysis, and displays them on a dashboard with voting and severity ranking.
 
-## 📌 Features
-- Fetches real-time complaints from *Twitter* using hashtags (e.g., #CITYHamirpur).
-- Stores data in *MongoDB* for NLP processing.
-- Analyzes complaint severity using *VADER sentiment analysis and keyword classification*.
-- Provides a *web-based dashboard* where users can upvote/downvote issues.
-- Automatically prioritizes complaints based on severity & user engagement.
-- *Blockchain integration* for transparent, immutable record-keeping of complaints.
+## Stack
 
-## 🛠 Installation
-To run the project locally, install the required dependencies:
+| Layer | Tech |
+|---|---|
+| Tweet fetch | Python + Tweepy |
+| NLP pipeline | Python — TextBlob, DistilBERT (HuggingFace), troll detection |
+| Database | Supabase (PostgreSQL) |
+| Backend API | Node.js + Express |
+| Frontend | Vanilla HTML/CSS/JS |
+| Orchestrator | Python + Textual TUI |
 
-### 1. Clone the Repository
-sh
-git clone https://github.com/Akshat-Dimri/Project-CITY.git
+## Structure
 
+```
+project_city/
+├── backend/
+│   ├── server.js          # Express API (Supabase-backed)
+│   ├── package.json
+│   └── public/index.html  # Dashboard frontend
+├── nlp_pipeline/
+│   ├── initial_fetch.py   # Pulls tweets from Twitter → Supabase
+│   ├── NLProcessing.py    # Sentiment + severity + troll detection
+│   └── requirements.txt
+├── orchestrator.py         # TUI to run all components together
+├── supabase_schema.sql     # Run this once in Supabase SQL editor
+├── .env.example
+└── .gitignore
+```
 
-### 2. Install Backend Dependencies
-Ensure you have Python installed, then install the required libraries:
-sh
-pip install -r requirements.txt
+## Setup
 
+### 1. Supabase
+1. Create a project at [supabase.com](https://supabase.com)
+2. Run `supabase_schema.sql` in the SQL editor
+3. Copy your project URL and anon key
 
-### 3. Install Frontend & Server Dependencies
-Install Node.js dependencies:
-sh
-npm install
+### 2. Twitter / X
+1. Get a Bearer Token from [developer.x.com](https://developer.x.com)
+2. Basic (free) tier works for search
 
+### 3. Environment
+```bash
+cp .env.example .env
+# Fill in SUPABASE_URL, SUPABASE_KEY, TWITTER_BEARER_TOKEN
+```
 
-### 4. Set Up Environment Variables
-Create a .env file in the project root and add:
+### 4. Install
+```bash
+# Node backend
+cd backend && npm install
 
-TWITTER_BEARER_TOKEN=your_twitter_api_key
-MONGO_URI=your_mongodb_connection_string
-WEB3_PROVIDER_URL=your_ethereum_node_url
-WALLET_PRIVATE_KEY=your_ethereum_wallet_private_key
-CONTRACT_ADDRESS=your_deployed_contract_address
+# Python pipeline
+pip install -r nlp_pipeline/requirements.txt
+```
 
+### 5. Run
 
-### 5. Install Blockchain Dependencies
-sh
-npm install web3 @truffle/contract @openzeppelin/contracts
+**All at once (TUI):**
+```bash
+pip install textual
+python orchestrator.py
+```
 
+**Individually:**
+```bash
+# Terminal 1 — tweet fetcher
+python nlp_pipeline/initial_fetch.py
 
-### 6. Deploy Smart Contract
-sh
-# Install Truffle globally
-npm install -g truffle
+# Terminal 2 — NLP processor
+python nlp_pipeline/NLProcessing.py
 
-# Initialize Truffle in the blockchain directory
-cd blockchain
-truffle init
+# Terminal 3 — backend + dashboard
+cd backend && node server.js
+# Dashboard at http://localhost:5500
+```
 
-# Deploy the smart contract to your network of choice
-truffle migrate --network <network_name>
+## Health Check
 
+`GET /api/health` returns the live status of Supabase and Twitter connections without taking the portal down.
 
-### 7. Configure Blockchain Settings
-Update the blockchain/config.js file with your contract details:
-js
-module.exports = {
-  CONTRACT_ADDRESS: process.env.CONTRACT_ADDRESS,
-  WEB3_PROVIDER_URL: process.env.WEB3_PROVIDER_URL
-}
+## My Contribution
 
-
-### 8. Run Backend Services
-Start the tweet fetching & NLP processing services:
-sh
-python initial_fetch.py  # Fetch tweets from Twitter
-python NLProcessing.py  # Perform NLP analysis
-python blockchain_sync.py  # Sync complaints to blockchain
-
-
-### 9. Run the Server
-Start the Express.js server for the web dashboard:
-sh
-node server.js
-
-
-## 🔮 Tech Stack
-- *Backend:* Python (Tweepy, NLTK, PyTorch)
-- *Database:* MongoDB (Atlas)
-- *NLP:* VADER Sentiment Analysis, Keyword-based classification
-- *Frontend:* React/HTML
-- *Server:* Node.js, Express
-- *Blockchain:* Ethereum, Solidity, Web3.js, Truffle
-
-## 🔮 Future Prospects
-- *Advanced NLP models (BERT-based)* for better classification.
-- *Additional complaint sources* such as WhatsApp & Telegram.
-- *Multilingual support* for wider accessibility.
-- *DAO governance* for community-led issue prioritization.
-
-## 📢 Contact
-For queries or contributions, reach out to the team via GitHub issues.
+- Wrote the NLP pipeline (`NLProcessing.py`) — sentiment analysis, severity scoring, issue classification, troll detection
+- Wrote the tweet fetcher (`initial_fetch.py`) and orchestrator
+- Frontend built with AI tools; product decisions (category taxonomy, severity formula, geo-voting logic) made by me

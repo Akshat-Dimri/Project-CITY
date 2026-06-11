@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project City — Civic Issues</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 { font-size: 1.2rem; letter-spacing: 1px; }
+
+    #health-badge {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background: #333;
+    }
+
+    .container { padding: 20px 24px; }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    select, input[type="text"] {
+      padding: 7px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.9rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    th {
+      background: #1a1a2e;
+      color: #fff;
+      text-align: left;
+      padding: 10px 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    td {
+      padding: 9px 12px;
+      font-size: 0.85rem;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+
+    .sev-high { color: #c0392b; font-weight: 600; }
+    .sev-med  { color: #e67e22; font-weight: 600; }
+    .sev-low  { color: #27ae60; }
+
+    .tag {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+      background: #e8e8f0;
+    }
+
+    .vote-btn {
+      border: 1px solid #ccc;
+      background: #fff;
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.82rem;
+      margin-right: 3px;
+    }
+    .vote-btn:hover { background: #eef; }
+
+    #status {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: #666;
+    }
+
+    .empty { text-align: center; padding: 40px; color: #999; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📍 Project City — Civic Issues</h1>
+  <span id="health-badge">checking...</span>
+</header>
+
+<div class="container">
+  <div class="controls">
+    <select id="cat-filter">
+      <option value="">All Categories</option>
+      <option value="roads">Roads</option>
+      <option value="water">Water</option>
+      <option value="electricity">Electricity</option>
+      <option value="waste">Waste</option>
+      <option value="other">Other</option>
+    </select>
+    <select id="sev-filter">
+      <option value="">All Severities</option>
+      <option value="high">High (≥7)</option>
+      <option value="med">Medium (3–6)</option>
+      <option value="low">Low (&lt;3)</option>
+    </select>
+    <input type="text" id="search" placeholder="Search text..." />
+  </div>
+
+  <div id="table-wrap"><div class="empty">Loading...</div></div>
+  <div id="status"></div>
+</div>
+
+<script>
+  let allIssues = [];
+
+  // ── Health check ──────────────────────────────────────────────────────────
+  async function checkHealth() {
+    try {
+      const r = await fetch('/api/health');
+      const h = await r.json();
+      const badge = document.getElementById('health-badge');
+      if (h.supabase.ok) {
+        badge.textContent = '🟢 Connected';
+        badge.style.background = '#145a14';
+      } else {
+        badge.textContent = '🔴 DB issue';
+        badge.style.background = '#7b1c1c';
+        console.warn('Supabase health:', h.supabase.error);
+      }
+    } catch (e) {
+      document.getElementById('health-badge').textContent = '⚠️ Server unreachable';
+    }
+  }
+
+  // ── Fetch issues ──────────────────────────────────────────────────────────
+  async function loadIssues() {
+    try {
+      const r = await fetch('/api/issues');
+      if (!r.ok) throw new Error('Server error');
+      allIssues = await r.json();
+      renderTable(applyFilters());
+      document.getElementById('status').textContent =
+        `Last updated: ${new Date().toLocaleTimeString()} — ${allIssues.length} issues`;
+    } catch (e) {
+      document.getElementById('table-wrap').innerHTML =
+        `<div class="empty">Failed to load: ${e.message}</div>`;
+    }
+  }
+
+  // ── Filter logic ──────────────────────────────────────────────────────────
+  function applyFilters() {
+    const cat   = document.getElementById('cat-filter').value;
+    const sev   = document.getElementById('sev-filter').value;
+    const query = document.getElementById('search').value.toLowerCase();
+
+    return allIssues.filter(t => {
+      if (cat && t.issue_category !== cat) return false;
+      if (sev === 'high' && t.severity_score < 7) return false;
+      if (sev === 'med'  && (t.severity_score < 3 || t.severity_score >= 7)) return false;
+      if (sev === 'low'  && t.severity_score >= 3) return false;
+      if (query && !t.text?.toLowerCase().includes(query)) return false;
+      return true;
+    });
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  function sevClass(s) {
+    return s >= 7 ? 'sev-high' : s >= 3 ? 'sev-med' : 'sev-low';
+  }
+
+  function renderTable(issues) {
+    if (!issues.length) {
+      document.getElementById('table-wrap').innerHTML = '<div class="empty">No issues match filters.</div>';
+      return;
+    }
+
+    const rows = issues.map(t => `
+      <tr>
+        <td>${t.text || '—'}</td>
+        <td>${t.issue_category ? `<span class="tag">${t.issue_category}</span>` : '—'}</td>
+        <td class="${sevClass(t.severity_score)}">${t.severity_score ?? '—'}</td>
+        <td>${t.bert_label || '—'}</td>
+        <td>${t.troll_flag ? '🚨' : '✅'}</td>
+        <td>
+          <button class="vote-btn" onclick="vote('${t.id}','up')">▲ ${t.upvotes}</button>
+          <button class="vote-btn" onclick="vote('${t.id}','down')">▼ ${t.downvotes}</button>
+        </td>
+        <td>${t.timestamp ? new Date(t.timestamp).toLocaleDateString() : '—'}</td>
+      </tr>`).join('');
+
+    document.getElementById('table-wrap').innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th style="width:35%">Issue Text</th>
+            <th>Category</th>
+            <th>Severity</th>
+            <th>Sentiment</th>
+            <th>Troll</th>
+            <th>Votes</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  // ── Vote ──────────────────────────────────────────────────────────────────
+  async function vote(id, type) {
+    let userLat = null, userLon = null;
+    if (navigator.geolocation) {
+      await new Promise(res => navigator.geolocation.getCurrentPosition(
+        p => { userLat = p.coords.latitude; userLon = p.coords.longitude; res(); },
+        () => res()
+      ));
+    }
+
+    try {
+      const r = await fetch(`/api/tweets/${id}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, userLat, userLon })
+      });
+      const data = await r.json();
+      if (!r.ok) { alert(data.error || 'Vote failed'); return; }
+
+      // Update in-place
+      const idx = allIssues.findIndex(t => t.id === id);
+      if (idx !== -1) allIssues[idx] = data;
+      renderTable(applyFilters());
+    } catch (e) {
+      alert('Network error');
+    }
+  }
+
+  // ── Event listeners ───────────────────────────────────────────────────────
+  document.getElementById('cat-filter').addEventListener('change', () => renderTable(applyFilters()));
+  document.getElementById('sev-filter').addEventListener('change', () => renderTable(applyFilters()));
+  document.getElementById('search').addEventListener('input',  () => renderTable(applyFilters()));
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  checkHealth();
+  loadIssues();
+  setInterval(loadIssues, 5 * 60 * 1000);   // refresh every 5 min
+  setInterval(checkHealth, 10 * 60 * 1000); // health check every 10 min
+</script>
+</body>
+</html>
