@@ -53,16 +53,17 @@ async function countRawTweets() {
 
 //  Process management ─
 function spawnPython(script, label) {
-  const proc = spawn('python', [script], {
+  const proc = spawn('python3', [script], {
     env: { ...process.env },
     stdio: ['ignore', 'pipe', 'pipe']
   });
 
+  proc.on('error', err => log(`[${label}] SPAWN ERROR: ${err.message}`));
   proc.stdout.on('data', d => log(`[${label}] ${d.toString().trim()}`));
   proc.stderr.on('data', d => log(`[${label}:err] ${d.toString().trim()}`));
   proc.on('exit', code => log(`[${label}] exited (code ${code})`));
 
-  log(` Started ${label} (pid ${proc.pid})`);
+  log(`Started ${label} (pid ${proc.pid})`);
   return proc;
 }
 
@@ -107,6 +108,11 @@ function goDormant() {
 // Run a single fetch pass and return whether any new tweets were found
 async function runFetchPass() {
   const before = await countRawTweets();
+  if (before === null) {
+    log('ERROR: Could not count tweets before fetch — skipping pass');
+    return false;
+  }
+
   state.lastCheck = new Date().toISOString();
 
   // Spawn fetcher, let it run one pass (it exits after one 15-min rate-limit cycle)
@@ -115,32 +121,36 @@ async function runFetchPass() {
     fetcherProc = proc;
     state.fetcherPid = proc.pid;
     proc.on('exit', resolve);
+    proc.on('error', resolve); // resolve even on spawn error so we don't hang
   });
 
   fetcherProc = null;
   state.fetcherPid = null;
 
   const after = await countRawTweets();
-  if (before === null || after === null) return false;
+  if (after === null) {
+    log('ERROR: Could not count tweets after fetch');
+    return false;
+  }
 
   const found = after > before;
   if (found) {
     state.lastNewTweet = new Date().toISOString();
-    log(` ${after - before} new tweet(s) found`);
+    log(`${after - before} new tweet(s) found`);
   } else {
-    log('  No new tweets this pass');
+    log('No new tweets this pass');
   }
   return found;
 }
 
 async function dormantCycle() {
-  log(' Dormant check...');
+  log('Dormant check...');
   const found = await runFetchPass();
   if (found) goActive();
 }
 
 async function activeCycle() {
-  log(' Active check...');
+  log('Active check...');
   const found = await runFetchPass();
 
   if (found) {
@@ -148,7 +158,7 @@ async function activeCycle() {
   } else {
     state.cyclesSinceNew++;
     const hoursIdle = (state.cyclesSinceNew * ACTIVE_INTERVAL) / 3600000;
-    log(` No new tweets for ${hoursIdle.toFixed(1)}h`);
+    log(`No new tweets for ${hoursIdle.toFixed(1)}h`);
     if (state.cyclesSinceNew * ACTIVE_INTERVAL >= ACTIVE_TIMEOUT) {
       goDormant();
     }
@@ -157,7 +167,7 @@ async function activeCycle() {
 
 //  Boot 
 function start() {
-  log(' Scheduler starting in DORMANT mode');
+  log('Scheduler starting in DORMANT mode');
   // Run an immediate dormant check on boot, then settle into interval
   dormantCycle();
   timer = setInterval(dormantCycle, DORMANT_INTERVAL);
