@@ -165,6 +165,14 @@ app.get('/api/issues', async (req, res) => {
   res.json(data.map(fmtTweet));
 });
 
+const { goActive } = require('./scheduler');  // need to export this
+
+// POST /api/pipeline/trigger — manually force ACTIVE mode + NLP
+app.post('/api/pipeline/trigger', (req, res) => {
+  scheduler.forceActive();
+  res.json({ ok: true, state: scheduler.state });
+});
+
 //  Start ──
 app.listen(PORT, () => {
   console.log(` Server running at http://localhost:${PORT}`);

@@ -174,3 +174,11 @@ function start() {
 }
 
 module.exports = { start, state };
+
+function forceActive() {
+  log('Manual trigger — forcing ACTIVE mode');
+  state.lastNewTweet = new Date().toISOString();
+  goActive();
+}
+
+module.exports = { start, state, forceActive };
