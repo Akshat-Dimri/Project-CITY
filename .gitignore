@@ -31,3 +31,6 @@ Thumbs.db
 *.log
 data/*.csv
 data/*.json
+
+# csv for sample tweets 
+sample_tweets.csv

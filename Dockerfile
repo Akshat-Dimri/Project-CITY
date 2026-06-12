@@ -10,7 +10,8 @@ WORKDIR /app
 
 # Install Python dependencies first (better layer caching)
 COPY nlp_pipeline/requirements.txt ./nlp_pipeline/requirements.txt
-RUN pip install --no-cache-dir -r nlp_pipeline/requirements.txt
+RUN pip install --no-cache-dir tweepy && \
+    pip install --no-cache-dir -r nlp_pipeline/requirements.txt
 
 # Install Node dependencies
 COPY backend/package*.json ./backend/

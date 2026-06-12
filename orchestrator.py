@@ -1,9 +1,6 @@
 """
-orchestrator.py — 2x2 TUI dashboard, terminator-style layout.
+orchestrator.py — 2x2 TUI dashboard.
 
-Keybindings:
-  f  — skip fetcher, jump straight to NLP
-  q  — quit
 """
 import os
 import asyncio
@@ -161,7 +158,7 @@ class Orchestrator(App):
         asyncio.create_task(self.run_script(
             "Frontend", SCRIPTS["Frontend"]))
 
-    # ── Fetcher with auto-bypass ──────────────────────────────────────────────
+    #  Fetcher with auto-bypass 
     async def run_fetcher(self):
         panel = self.query_one("#tweet-fetcher", Panel)
         panel.set_status("running")
@@ -190,7 +187,7 @@ class Orchestrator(App):
             self.nlp_ready.set()
             self.node_ready.set()
 
-    # ── Manual bypass: F key ──────────────────────────────────────────────────
+    #  Manual bypass using F key 
     def action_skip_fetcher(self):
         panel = self.query_one("#tweet-fetcher", Panel)
         if self.nlp_ready.is_set():
@@ -203,7 +200,7 @@ class Orchestrator(App):
         self.nlp_ready.set()
         self.node_ready.set()
 
-    # ── Generic runner ────────────────────────────────────────────────────────
+    #  Generic runner 
     async def run_script(self, name, cmd, wait=None, trigger=None, trigger_phrase=None):
         panel = self.query_one(f"#{to_id(name)}", Panel)
         if wait:
