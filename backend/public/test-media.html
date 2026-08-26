@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project City — Test Media</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; color: #222; }
+
+    header {
+      background: #1a1a2e; color: #fff; padding: 14px 24px;
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;
+    }
+    header h1 { font-size: 1.15rem; letter-spacing: 0.5px; }
+    header .sub { font-size: 0.75rem; color: #b8b8cc; margin-top: 2px; }
+    .back-link {
+      color: #fff; border: 1px solid #4a4a68; padding: 6px 13px; border-radius: 6px;
+      font-size: 0.82rem; text-decoration: none; font-weight: 600;
+    }
+    .back-link:hover { background: #2a2a45; }
+
+    .layout {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 24px; max-width: 1200px; margin: 0 auto;
+    }
+    @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+    .card {
+      background: #fff; border-radius: 8px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .card h2 { font-size: 1rem; margin-bottom: 14px; color: #1a1a2e; }
+
+    label { display: block; font-size: 0.78rem; color: #666; margin-bottom: 4px; margin-top: 14px; font-weight: 600; }
+    label:first-of-type { margin-top: 0; }
+
+    input[type="text"], textarea, select {
+      width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 0.9rem; font-family: inherit;
+    }
+    textarea { min-height: 90px; resize: vertical; }
+
+    .slider-row { display: flex; align-items: center; gap: 10px; }
+    .slider-row input[type="range"] { flex: 1; }
+    .slider-value { font-size: 0.82rem; font-weight: 600; color: #1a1a2e; min-width: 42px; text-align: right; }
+
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+    .checkbox-row input { width: auto; }
+    .checkbox-row label { margin: 0; font-weight: 500; color: #444; }
+
+    .loc-methods { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+    .loc-methods button {
+      border: 1px solid #ccc; background: #f7f7fb; padding: 6px 11px; border-radius: 5px;
+      font-size: 0.78rem; cursor: pointer;
+    }
+    .loc-methods button:hover { background: #eef; }
+    .loc-methods button.active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; }
+
+    #pick-map { height: 220px; border-radius: 6px; margin-top: 10px; display: none; }
+    .coords-display {
+      font-size: 0.78rem; color: #666; margin-top: 8px; background: #f7f7fb; padding: 6px 10px; border-radius: 5px;
+    }
+
+    .submit-btn {
+      width: 100%; background: #1a1a2e; color: #fff; border: none; padding: 11px; border-radius: 6px;
+      font-size: 0.92rem; font-weight: 600; cursor: pointer; margin-top: 18px;
+    }
+    .submit-btn:hover { background: #2a2a45; }
+    .submit-btn:disabled { background: #999; cursor: not-allowed; }
+
+    .form-error { color: #c0392b; font-size: 0.82rem; margin-top: 8px; }
+    .form-success {
+      background: #e6f7ec; color: #1e7e42; padding: 10px 12px; border-radius: 6px; font-size: 0.85rem; margin-top: 14px;
+    }
+
+    .result-card {
+      border: 1px solid #e6e6f0; border-radius: 8px; padding: 14px; margin-top: 14px; background: #f7f7fb;
+    }
+    .result-row { display: flex; justify-content: space-between; font-size: 0.82rem; padding: 4px 0; border-bottom: 1px solid #eee; }
+    .result-row:last-child { border-bottom: none; }
+    .result-row span:first-child { color: #888; }
+
+    .badge {
+      display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 0.72rem; font-weight: 600;
+    }
+    .badge-twitter   { background: #d6ecff; color: #0b5faa; }
+    .badge-simulated { background: #ece3ff; color: #5b3fa8; }
+    .badge-manual    { background: #fdf3d6; color: #93720b; }
+    .badge-forwarded { background: #ffe3d6; color: #c0392b; }
+    .tag { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 0.75rem; background: #e8e8f0; }
+
+    .feed-item {
+      border-bottom: 1px solid #eee; padding: 10px 0; font-size: 0.85rem;
+    }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-meta { font-size: 0.75rem; color: #888; margin-top: 4px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .empty { text-align: center; padding: 30px; color: #999; font-size: 0.85rem; }
+    .refresh-btn {
+      border: 1px solid #ccc; background: #fff; padding: 5px 10px; border-radius: 5px;
+      font-size: 0.78rem; cursor: pointer; float: right;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Test Media — Post a Tweet</h1>
+    <div class="sub">Mock social feed for feeding dummy complaints into Project City</div>
+  </div>
+  <a class="back-link" href="/">Back to Dashboard</a>
+</header>
+
+<div class="layout">
+  <!-- COMPOSER -->
+  <div class="card">
+    <h2>Compose</h2>
+
+    <label>Username (optional)</label>
+    <input type="text" id="f-username" placeholder="Leave blank to auto-generate" />
+
+    <label>Tweet text</label>
+    <textarea id="f-text" placeholder="Describe the civic issue..."></textarea>
+
+    <label>Category</label>
+    <select id="f-category">
+      <option value="auto">Auto-detect from text</option>
+      <option value="roads">Roads</option>
+      <option value="water">Water</option>
+      <option value="electricity">Electricity</option>
+      <option value="waste">Waste</option>
+      <option value="other">Other</option>
+    </select>
+
+    <label>Sentiment (affects severity)</label>
+    <div class="slider-row">
+      <span style="font-size:0.75rem;color:#888;">Negative</span>
+      <input type="range" id="f-sentiment" min="-1" max="1" step="0.1" value="-0.3" />
+      <span style="font-size:0.75rem;color:#888;">Positive</span>
+      <span class="slider-value" id="f-sentiment-val">-0.3</span>
+    </div>
+
+    <label>Simulated engagement (likes + retweets)</label>
+    <div class="slider-row">
+      <input type="range" id="f-engagement" min="0" max="500" step="10" value="0" />
+      <span class="slider-value" id="f-engagement-val">0</span>
+    </div>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="f-troll" />
+      <label for="f-troll">Force mark as troll / spam (skip auto-detection)</label>
+    </div>
+
+    <label>Location <span style="font-weight:400;color:#999;">(required)</span></label>
+    <div class="loc-methods">
+      <button type="button" id="method-dropdown" class="active" onclick="setLocMethod('dropdown')">Pick from list</button>
+      <button type="button" id="method-map" onclick="setLocMethod('map')">Click on map</button>
+      <button type="button" id="method-current" onclick="useCurrentLocation()">Use my current location</button>
+    </div>
+
+    <select id="f-locality-select" style="margin-top:10px;">
+      <option value="">Loading localities...</option>
+    </select>
+    <div id="pick-map"></div>
+    <div class="coords-display" id="coords-display">No location selected yet.</div>
+
+    <button class="submit-btn" id="submit-btn" onclick="submitTestTweet()">Post Tweet</button>
+    <div class="form-error" id="form-error"></div>
+    <div class="form-success" id="form-success" style="display:none;"></div>
+
+    <div id="result-wrap"></div>
+  </div>
+
+  <!-- FEED -->
+  <div class="card">
+    <h2>Recent Test Posts <button class="refresh-btn" onclick="loadFeed()">Refresh</button></h2>
+    <div id="feed-wrap"><div class="empty">Loading...</div></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  let localities = [];
+  let selectedLat = null, selectedLon = null;
+  let locMethod = 'dropdown';
+  let pickMap, pickMarker, pickMapInitialized = false;
+
+  // ── Load localities for the dropdown ────────────────────────────────────
+  async function loadLocalities() {
+    try {
+      const r = await fetch('/api/localities');
+      const data = await r.json();
+      localities = data.localities || [];
+      const sel = document.getElementById('f-locality-select');
+      sel.innerHTML = '<option value="">Select a location...</option>' +
+        localities.map((l, i) => `<option value="${i}">${l.name}</option>`).join('');
+    } catch (e) {
+      document.getElementById('f-locality-select').innerHTML = '<option value="">Failed to load</option>';
+    }
+  }
+
+  document.getElementById('f-locality-select').addEventListener('change', e => {
+    const idx = e.target.value;
+    if (idx === '') { selectedLat = null; selectedLon = null; updateCoordsDisplay(); return; }
+    const loc = localities[idx];
+    selectedLat = loc.lat; selectedLon = loc.lon;
+    updateCoordsDisplay(loc.name);
+  });
+
+  function updateCoordsDisplay(label) {
+    const el = document.getElementById('coords-display');
+    if (selectedLat == null) { el.textContent = 'No location selected yet.'; return; }
+    el.textContent = `${label ? label + ' — ' : ''}Lat ${selectedLat.toFixed(5)}, Lon ${selectedLon.toFixed(5)}`;
+  }
+
+  function setLocMethod(method) {
+    locMethod = method;
+    ['dropdown', 'map', 'current'].forEach(m => {
+      document.getElementById(`method-${m}`).classList.toggle('active', m === method);
+    });
+    document.getElementById('f-locality-select').style.display = method === 'dropdown' ? 'block' : 'none';
+    document.getElementById('pick-map').style.display = method === 'map' ? 'block' : 'none';
+
+    if (method === 'map') initPickMap();
+  }
+
+  function initPickMap() {
+    if (pickMapInitialized) { setTimeout(() => pickMap.invalidateSize(), 100); return; }
+    pickMap = L.map('pick-map').setView([31.7115, 76.5117], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors', maxZoom: 18,
+    }).addTo(pickMap);
+    pickMap.on('click', e => {
+      selectedLat = e.latlng.lat; selectedLon = e.latlng.lng;
+      if (pickMarker) pickMap.removeLayer(pickMarker);
+      pickMarker = L.marker(e.latlng).addTo(pickMap);
+      updateCoordsDisplay('Map pin');
+    });
+    pickMapInitialized = true;
+    setTimeout(() => pickMap.invalidateSize(), 100);
+  }
+
+  function useCurrentLocation() {
+    if (!navigator.geolocation) { alert('Geolocation is not supported by this browser.'); return; }
+    navigator.geolocation.getCurrentPosition(
+      p => {
+        selectedLat = p.coords.latitude; selectedLon = p.coords.longitude;
+        updateCoordsDisplay('My current location');
+      },
+      () => alert('Could not get your location — please allow location permissions.'),
+      { timeout: 8000 }
+    );
+  }
+
+  // ── Sliders ──────────────────────────────────────────────────────────────
+  document.getElementById('f-sentiment').addEventListener('input', e => {
+    document.getElementById('f-sentiment-val').textContent = parseFloat(e.target.value).toFixed(1);
+  });
+  document.getElementById('f-engagement').addEventListener('input', e => {
+    document.getElementById('f-engagement-val').textContent = e.target.value;
+  });
+
+  // ── Submit ───────────────────────────────────────────────────────────────
+  function sevClass(s) { return s >= 7 ? 'color:#c0392b;font-weight:600;' : s >= 3 ? 'color:#e67e22;font-weight:600;' : 'color:#27ae60;'; }
+
+  function sourceBadge(source) {
+    if (source === 'simulated') return '<span class="badge badge-simulated">Simulated</span>';
+    if (source === 'manual')    return '<span class="badge badge-manual">Test / Manual</span>';
+    return '<span class="badge badge-twitter">Twitter</span>';
+  }
+
+  async function submitTestTweet() {
+    const errEl = document.getElementById('form-error');
+    const successEl = document.getElementById('form-success');
+    errEl.textContent = '';
+    successEl.style.display = 'none';
+
+    const text = document.getElementById('f-text').value.trim();
+    if (!text) { errEl.textContent = 'Tweet text is required.'; return; }
+    if (selectedLat == null || selectedLon == null) {
+      errEl.textContent = 'A location is required — pick from the list, click the map, or use your current location.';
+      return;
+    }
+
+    const payload = {
+      text,
+      username: document.getElementById('f-username').value.trim(),
+      latitude: selectedLat,
+      longitude: selectedLon,
+      category: document.getElementById('f-category').value,
+      sentiment: parseFloat(document.getElementById('f-sentiment').value),
+      engagement: parseFloat(document.getElementById('f-engagement').value),
+      isTroll: document.getElementById('f-troll').checked || undefined,
+    };
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true; btn.textContent = 'Posting...';
+
+    try {
+      const r = await fetch('/api/test/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json();
+      if (!r.ok) { errEl.textContent = data.error || 'Failed to post.'; return; }
+
+      successEl.style.display = 'block';
+      successEl.textContent = 'Posted successfully — processed instantly below.';
+      renderResult(data);
+      document.getElementById('f-text').value = '';
+      loadFeed();
+    } catch (e) {
+      errEl.textContent = 'Network error — is the server running?';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Post Tweet';
+    }
+  }
+
+  function renderResult(t) {
+    document.getElementById('result-wrap').innerHTML = `
+      <div class="result-card">
+        <div class="result-row"><span>Category</span><span class="tag">${t.issue_category}</span></div>
+        <div class="result-row"><span>Severity</span><span style="${sevClass(t.severity_score)}">${t.severity_score} / 10</span></div>
+        <div class="result-row"><span>Sentiment</span><span>${t.bert_label} (${t.sentiment_score})</span></div>
+        <div class="result-row"><span>Troll check</span><span>${t.troll_flag ? 'Flagged' : 'OK'}</span></div>
+        <div class="result-row"><span>Location</span><span>${t.locality_name || 'Unresolved'}</span></div>
+        <div class="result-row"><span>Source</span><span>${sourceBadge(t.source)}</span></div>
+        <div class="result-row"><span>Status</span><span>${t.forwarded ? '<span class="badge badge-forwarded">Forwarded</span>' : 'Open'}</span></div>
+      </div>`;
+  }
+
+  // ── Feed ─────────────────────────────────────────────────────────────────
+  async function loadFeed() {
+    try {
+      const r = await fetch('/api/issues');
+      const issues = await r.json();
+      const testPosts = issues.filter(t => t.source === 'manual').slice(0, 15);
+
+      if (!testPosts.length) {
+        document.getElementById('feed-wrap').innerHTML = '<div class="empty">No test posts yet — post one on the left.</div>';
+        return;
+      }
+
+      document.getElementById('feed-wrap').innerHTML = testPosts.map(t => `
+        <div class="feed-item">
+          <div>${t.text}</div>
+          <div class="feed-meta">
+            ${sourceBadge(t.source)}
+            <span class="tag">${t.issue_category}</span>
+            <span style="${sevClass(t.severity_score)}">Sev ${t.severity_score}</span>
+            <span>▲${t.upvotes} / ▼${t.downvotes}</span>
+            ${t.locality_name ? `<span>${t.locality_name}</span>` : ''}
+            ${t.forwarded ? '<span class="badge badge-forwarded">Forwarded</span>' : ''}
+          </div>
+        </div>`).join('');
+    } catch (e) {
+      document.getElementById('feed-wrap').innerHTML = `<div class="empty">Failed to load: ${e.message}</div>`;
+    }
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────────
+  loadLocalities();
+  loadFeed();
+  setInterval(loadFeed, 60 * 1000);
+</script>
+</body>
+</html>

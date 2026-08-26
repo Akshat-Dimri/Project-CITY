@@ -34,3 +34,7 @@ data/*.json
 
 # csv for sample tweets 
 sample_tweets.csv
+manual_trigger.txt
+
+
+backend/.env

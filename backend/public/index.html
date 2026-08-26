@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Project City — Civic Issues</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -20,16 +21,78 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
     }
 
     header h1 { font-size: 1.2rem; letter-spacing: 1px; }
+
+    .header-right { display: flex; align-items: center; gap: 10px; }
 
     #health-badge {
       font-size: 0.75rem;
       padding: 4px 10px;
       border-radius: 12px;
       background: #333;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #888; display: inline-block; }
+    .status-dot.ok   { background: #3ac162; }
+    .status-dot.bad  { background: #e05252; }
+    .status-dot.warn { background: #e0a952; }
+
+    .btn-secondary {
+      background: transparent;
+      color: #fff;
+      border: 1px solid #4a4a68;
+      padding: 6px 13px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      font-weight: 600;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .btn-secondary:hover { background: #2a2a45; }
+
+    .demo-btn {
+      background: #4b3fa8;
+      color: #fff;
+      border: none;
+      padding: 7px 14px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    .demo-btn:hover { background: #5b4dc4; }
+
+    /* Tabs */
+    .tabbar {
+      display: flex;
+      background: #22223a;
+      padding: 0 24px;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: #b8b8cc;
+      padding: 12px 18px;
+      font-size: 0.88rem;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+    }
+    .tab-btn.active {
+      color: #fff;
+      border-bottom: 3px solid #4b3fa8;
+      font-weight: 600;
+    }
+    .tab-btn:hover { color: #fff; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
 
     .container { padding: 20px 24px; }
 
@@ -38,9 +101,10 @@
       gap: 10px;
       margin-bottom: 16px;
       flex-wrap: wrap;
+      align-items: center;
     }
 
-    select, input[type="text"] {
+    select, input[type="text"], input[type="password"] {
       padding: 7px 10px;
       border: 1px solid #ccc;
       border-radius: 4px;
@@ -87,6 +151,20 @@
       background: #e8e8f0;
     }
 
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .badge-twitter   { background: #d6ecff; color: #0b5faa; }
+    .badge-simulated { background: #ece3ff; color: #5b3fa8; }
+    .badge-manual    { background: #fdf3d6; color: #93720b; }
+    .badge-forwarded { background: #ffe3d6; color: #c0392b; }
+    .troll-ok   { color: #1e7e42; font-weight: 600; font-size: 0.78rem; }
+    .troll-flag { color: #b03030; font-weight: 600; font-size: 0.78rem; }
+
     .vote-btn {
       border: 1px solid #ccc;
       background: #fff;
@@ -105,61 +183,418 @@
     }
 
     .empty { text-align: center; padding: 40px; color: #999; }
+
+    /* Map tab */
+    #map { height: 560px; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); position: relative; }
+    .map-legend {
+      display: flex; gap: 16px; margin-bottom: 10px; font-size: 0.8rem; color: #555; flex-wrap: wrap;
+    }
+    .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+    .popup-vote-btn {
+      border: 1px solid #ccc; background: #fff; cursor: pointer; padding: 4px 10px;
+      border-radius: 4px; font-size: 0.8rem; margin-right: 4px; margin-top: 6px;
+    }
+    .map-filters {
+      display: flex; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; align-items: center;
+      background: #fff; padding: 10px 14px; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .map-filters label { font-size: 0.75rem; color: #888; display: block; margin-bottom: 2px; }
+    .map-filter-group { display: flex; flex-direction: column; }
+    .map-filters button {
+      border: 1px solid #ccc; background: #f7f7fb; padding: 7px 12px; border-radius: 4px;
+      font-size: 0.82rem; cursor: pointer; align-self: flex-end;
+    }
+    .map-filters button:hover { background: #eef; }
+
+    /* Map pin markers (severity-colored) */
+    .map-pin { width: 22px; height: 22px; display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35)); }
+
+    /* Admin: modal overlay for the Forward/compose mail window */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(10,10,20,0.55);
+      z-index: 998; align-items: center; justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal-box {
+      background: #fff; width: 92%; max-width: 520px; border-radius: 8px; overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+    }
+    .modal-header {
+      background: #1a1a2e; color: #fff; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.88rem; font-weight: 600;
+    }
+    .modal-header button { background: none; border: none; color: #ccc; font-size: 1.1rem; cursor: pointer; }
+    .modal-body { padding: 18px; display: flex; flex-direction: column; gap: 10px; max-height: 60vh; overflow-y: auto; }
+    .modal-body label { font-size: 0.75rem; color: #888; }
+    .modal-body input, .modal-body textarea {
+      width: 100%; padding: 7px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; font-family: inherit;
+    }
+    .modal-body textarea { resize: vertical; }
+    .modal-footer { padding: 12px 18px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+    .modal-footer button {
+      padding: 7px 14px; border-radius: 6px; font-size: 0.82rem; cursor: pointer; border: 1px solid #ccc; background: #fff;
+    }
+    .modal-footer button.primary { background: #1a1a2e; color: #fff; border: none; }
+
+    .badge-suggested { background: #fff3cd; color: #8a6100; }
+    .forward-btn { border: 1px solid #c0392b; color: #c0392b; background: #fff; }
+    .forward-btn:hover { background: #fdeaea; }
+
+    /* Custom hover tooltip on map circles */
+    .map-hover-tooltip {
+      position: absolute; z-index: 500; background: #1a1a2e; color: #fff; padding: 10px 12px;
+      border-radius: 6px; font-size: 0.78rem; pointer-events: none; min-width: 170px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25); display: none; transform: translate(-50%, -115%);
+    }
+    .map-hover-tooltip .mht-row { display: flex; justify-content: space-between; gap: 10px; margin-top: 3px; }
+    .map-hover-tooltip .mht-title { font-weight: 600; margin-bottom: 4px; border-bottom: 1px solid #3a3a58; padding-bottom: 4px; }
+
+    /* Admin tab */
+    .login-box {
+      max-width: 340px; margin: 60px auto; background: #fff; padding: 28px;
+      border-radius: 8px; box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+    }
+    .login-box h2 { font-size: 1.05rem; margin-bottom: 16px; }
+    .login-box input { width: 100%; margin-bottom: 10px; }
+    .login-box button {
+      width: 100%; background: #1a1a2e; color: #fff; border: none; padding: 9px;
+      border-radius: 5px; cursor: pointer; font-size: 0.9rem;
+    }
+    .login-error { color: #c0392b; font-size: 0.8rem; margin-top: 6px; }
+
+    .admin-bar {
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;
+    }
+    .stat-cards { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .stat-card {
+      background: #fff; padding: 12px 18px; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      min-width: 120px;
+    }
+    .stat-card .num { font-size: 1.4rem; font-weight: 700; color: #1a1a2e; }
+    .stat-card .label { font-size: 0.75rem; color: #888; }
+    .logout-btn {
+      background: none; border: 1px solid #ccc; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 0.8rem;
+    }
+
+    /* Demo overlay */
+    .demo-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(10,10,20,0.75);
+      z-index: 999; align-items: center; justify-content: center;
+    }
+    .demo-overlay.active { display: flex; }
+    .demo-modal {
+      background: #fff; width: 92%; max-width: 560px; border-radius: 10px; overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+    }
+    .demo-modal-header {
+      background: #1a1a2e; color: #fff; padding: 12px 18px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .demo-modal-header span { font-size: 0.85rem; font-weight: 600; }
+    .demo-close { background: none; border: none; color: #ccc; font-size: 1.1rem; cursor: pointer; }
+    .demo-progress { height: 4px; background: #eee; }
+    .demo-progress-fill { height: 100%; background: #4b3fa8; width: 0%; transition: width 0.4s linear; }
+    .demo-body { padding: 22px; min-height: 300px; display: flex; flex-direction: column; gap: 12px; }
+    .demo-caption { font-size: 0.78rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+    .demo-tweet-card {
+      background: #f7f7fb; border: 1px solid #e6e6f0; border-radius: 8px; padding: 12px 14px; font-size: 0.9rem;
+      min-height: 40px;
+    }
+    .demo-badges { display: flex; gap: 6px; flex-wrap: wrap; min-height: 24px; }
+    .demo-badge {
+      opacity: 0; transform: translateY(6px); transition: all 0.35s ease;
+      padding: 3px 9px; border-radius: 10px; font-size: 0.75rem; font-weight: 600;
+    }
+    .demo-badge.show { opacity: 1; transform: translateY(0); }
+    .demo-map-mini {
+      height: 140px; border-radius: 8px; background: #e8ecf3; position: relative; overflow: hidden;
+      background-image: radial-gradient(circle at 30% 30%, #dfe4ee 0%, #eceff5 60%);
+    }
+    .demo-pin {
+      position: absolute; top: 50%; left: 50%; width: 14px; height: 14px; border-radius: 50%;
+      background: #c0392b; transform: translate(-50%,-50%) scale(0); transition: transform 0.4s ease;
+      box-shadow: 0 0 0 6px rgba(192,57,43,0.15);
+    }
+    .demo-pin.show { transform: translate(-50%,-50%) scale(1); }
+    .demo-ring {
+      position: absolute; top: 50%; left: 50%; width: 90px; height: 90px; border-radius: 50%;
+      border: 2px dashed #c0392b; opacity: 0; transform: translate(-50%,-50%) scale(0.4);
+      transition: all 0.6s ease;
+    }
+    .demo-ring.show { opacity: 0.5; transform: translate(-50%,-50%) scale(1); }
+    .demo-vote-row { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; }
+    .demo-vote-counter { font-weight: 700; font-size: 1.1rem; color: #1a1a2e; min-width: 34px; }
+    .demo-toast {
+      font-size: 0.78rem; padding: 4px 9px; border-radius: 6px; opacity: 0; transition: opacity 0.3s ease;
+    }
+    .demo-toast.show { opacity: 1; }
+    .demo-toast.ok  { background: #e6f7ec; color: #1e7e42; }
+    .demo-toast.bad { background: #fdeaea; color: #b12e2e; }
+    .demo-escalate {
+      opacity: 0; transform: scale(0.9); transition: all 0.4s ease;
+      background: #fff2e8; border: 1px solid #f3c9a8; color: #a84a1c;
+      padding: 12px 14px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; text-align: center;
+    }
+    .demo-escalate.show { opacity: 1; transform: scale(1); }
+    .demo-footer { padding: 12px 18px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px; }
+    .demo-footer button {
+      padding: 7px 14px; border-radius: 6px; font-size: 0.82rem; cursor: pointer; border: 1px solid #ccc; background: #fff;
+    }
+    .demo-footer button.primary { background: #1a1a2e; color: #fff; border: none; }
   </style>
 </head>
 <body>
 
 <header>
-  <h1>📍 Project City — Civic Issues</h1>
-  <span id="health-badge">checking...</span>
+  <h1>Project City — Civic Issues</h1>
+  <div class="header-right">
+    <a class="btn-secondary" href="/test-media.html" target="_blank" rel="noopener">Post Test Tweet</a>
+    <button class="demo-btn" onclick="startDemo()">Watch Demo</button>
+    <span id="health-badge"><span class="status-dot" id="health-dot"></span><span id="health-text">Checking...</span></span>
+  </div>
 </header>
 
-<div class="container">
-  <div class="controls">
-    <select id="cat-filter">
-      <option value="">All Categories</option>
-      <option value="roads">Roads</option>
-      <option value="water">Water</option>
-      <option value="electricity">Electricity</option>
-      <option value="waste">Waste</option>
-      <option value="other">Other</option>
-    </select>
-    <select id="sev-filter">
-      <option value="">All Severities</option>
-      <option value="high">High (≥7)</option>
-      <option value="med">Medium (3–6)</option>
-      <option value="low">Low (&lt;3)</option>
-    </select>
-    <input type="text" id="search" placeholder="Search text..." />
-  </div>
-
-  <div id="table-wrap"><div class="empty">Loading...</div></div>
-  <div id="status"></div>
+<div class="tabbar">
+  <button class="tab-btn active" data-tab="issues" onclick="showTab('issues')">Issues</button>
+  <button class="tab-btn" data-tab="map" onclick="showTab('map')">Map</button>
+  <button class="tab-btn" data-tab="admin" onclick="showTab('admin')">Admin</button>
 </div>
 
+<!-- ISSUES TAB -->
+<div class="tab-panel active" id="panel-issues">
+  <div class="container">
+    <div class="controls">
+      <select id="cat-filter">
+        <option value="">All Categories</option>
+        <option value="roads">Roads</option>
+        <option value="water">Water</option>
+        <option value="electricity">Electricity</option>
+        <option value="waste">Waste</option>
+        <option value="other">Other</option>
+      </select>
+      <select id="sev-filter">
+        <option value="">All Severities</option>
+        <option value="high">High (≥7)</option>
+        <option value="med">Medium (3–6)</option>
+        <option value="low">Low (&lt;3)</option>
+      </select>
+      <select id="source-filter">
+        <option value="">All Sources</option>
+        <option value="twitter">Twitter</option>
+        <option value="simulated">Simulated</option>
+        <option value="manual">Test / Manual</option>
+      </select>
+      <input type="text" id="search" placeholder="Search text..." />
+    </div>
+
+    <div id="table-wrap"><div class="empty">Loading...</div></div>
+    <div id="status"></div>
+  </div>
+</div>
+
+<!-- MAP TAB -->
+<div class="tab-panel" id="panel-map">
+  <div class="container">
+    <div class="map-filters">
+      <div class="map-filter-group">
+        <label>Category</label>
+        <select id="map-cat-filter">
+          <option value="">All</option>
+          <option value="roads">Roads</option>
+          <option value="water">Water</option>
+          <option value="electricity">Electricity</option>
+          <option value="waste">Waste</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="map-filter-group">
+        <label>Severity</label>
+        <select id="map-sev-filter">
+          <option value="">All</option>
+          <option value="high">High (≥7)</option>
+          <option value="med">Medium (3–6)</option>
+          <option value="low">Low (&lt;3)</option>
+        </select>
+      </div>
+      <div class="map-filter-group">
+        <label>Location</label>
+        <select id="map-loc-filter">
+          <option value="">All</option>
+        </select>
+      </div>
+      <div class="map-filter-group">
+        <label>Upvotes</label>
+        <select id="map-vote-filter">
+          <option value="">Any</option>
+          <option value="1">1+</option>
+          <option value="5">5+</option>
+          <option value="10">10+</option>
+          <option value="20">20+</option>
+        </select>
+      </div>
+      <button onclick="resetMapFilters()">Reset</button>
+    </div>
+
+    <div class="map-legend">
+      <span><span class="legend-dot" style="background:#c0392b"></span>Pin: High severity (≥7)</span>
+      <span><span class="legend-dot" style="background:#e67e22"></span>Medium (3–6)</span>
+      <span><span class="legend-dot" style="background:#27ae60"></span>Low (&lt;3)</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid #8b0000;margin-right:5px;"></span>Solid = exact location (confirmed)</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px dashed #e57373;margin-right:5px;"></span>Dotted = approximate location</span>
+      <span style="margin-left:auto;color:#999;">Circle = 500 m impact/voting radius. Hover 2s for details.</span>
+    </div>
+    <div id="map">
+      <div class="map-hover-tooltip" id="map-hover-tooltip"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN TAB -->
+<div class="tab-panel" id="panel-admin">
+  <div id="admin-login-wrap">
+    <div class="login-box">
+      <h2>Admin Login</h2>
+      <input type="text" id="admin-user" value="admin" />
+      <input type="password" id="admin-pass" value="CityDemo2026" />
+      <button onclick="adminLogin()">Log In</button>
+      <div class="login-error" id="admin-login-error"></div>
+    </div>
+  </div>
+
+  <div id="admin-dashboard" style="display:none;">
+    <div class="container">
+      <div class="admin-bar">
+        <h2 style="font-size:1.05rem;">Admin Dashboard</h2>
+        <button class="logout-btn" onclick="adminLogout()">Log Out</button>
+      </div>
+      <div class="stat-cards" id="admin-stats"></div>
+      <div class="controls">
+        <select id="admin-cat-filter">
+          <option value="">All Categories</option>
+          <option value="roads">Roads</option>
+          <option value="water">Water</option>
+          <option value="electricity">Electricity</option>
+          <option value="waste">Waste</option>
+          <option value="other">Other</option>
+        </select>
+        <select id="admin-sev-filter">
+          <option value="">All Severities</option>
+          <option value="high">High (≥7)</option>
+          <option value="med">Medium (3–6)</option>
+          <option value="low">Low (&lt;3)</option>
+        </select>
+        <select id="admin-source-filter">
+          <option value="">All Sources</option>
+          <option value="twitter">Twitter</option>
+          <option value="simulated">Simulated</option>
+          <option value="manual">Test / Manual</option>
+        </select>
+        <select id="admin-status-filter">
+          <option value="">All Status</option>
+          <option value="open">Open</option>
+          <option value="suggested">Suggested Forward</option>
+          <option value="forwarded">Forwarded</option>
+        </select>
+        <input type="text" id="admin-search" placeholder="Search text..." />
+        <button class="vote-btn" onclick="exportAdminCSV()">Export CSV</button>
+      </div>
+      <div id="admin-table-wrap"><div class="empty">Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN: FORWARD / COMPOSE-MAIL MODAL (proof of concept — no real mail sent from here) -->
+<div class="modal-overlay" id="forward-modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>Forward Complaint to Authority</span>
+      <button onclick="closeForwardModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div><label>To</label><input type="text" id="fwd-to"></div>
+      <div><label>Subject</label><input type="text" id="fwd-subject"></div>
+      <div><label>Message</label><textarea id="fwd-body" rows="11"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button onclick="closeForwardModal()">Cancel</button>
+      <button onclick="openMailApp()">Open in Mail App</button>
+      <button class="primary" onclick="sendForward()">Simulate Send &amp; Mark Forwarded</button>
+    </div>
+  </div>
+</div>
+
+<!-- DEMO OVERLAY -->
+<div class="demo-overlay" id="demo-overlay">
+  <div class="demo-modal">
+    <div class="demo-modal-header">
+      <span>Project City — Live Demo</span>
+      <button class="demo-close" onclick="closeDemo()">&times;</button>
+    </div>
+    <div class="demo-progress"><div class="demo-progress-fill" id="demo-progress-fill"></div></div>
+    <div class="demo-body">
+      <div class="demo-caption" id="demo-caption">Step 1 of 5</div>
+      <div class="demo-tweet-card" id="demo-tweet-text"></div>
+      <div class="demo-badges" id="demo-badges"></div>
+      <div class="demo-map-mini">
+        <div class="demo-ring" id="demo-ring"></div>
+        <div class="demo-pin" id="demo-pin"></div>
+      </div>
+      <div class="demo-vote-row">
+        <span>Net votes:</span>
+        <span class="demo-vote-counter" id="demo-vote-counter">0</span>
+        <span class="demo-toast" id="demo-toast"></span>
+      </div>
+      <div class="demo-escalate" id="demo-escalate">Escalated — Forwarded to Municipal Corporation, Hamirpur</div>
+    </div>
+    <div class="demo-footer">
+      <button onclick="closeDemo()">Close</button>
+      <button class="primary" id="demo-replay-btn" style="display:none;" onclick="startDemo()">Replay</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   let allIssues = [];
+  let allComplaints = [];
 
-  // ── Health check ──────────────────────────────────────────────────────────
-  async function checkHealth() {
-    try {
-      const r = await fetch('/api/health');
-      const h = await r.json();
-      const badge = document.getElementById('health-badge');
-      if (h.supabase.ok) {
-        badge.textContent = '🟢 Connected';
-        badge.style.background = '#145a14';
-      } else {
-        badge.textContent = '🔴 DB issue';
-        badge.style.background = '#7b1c1c';
-        console.warn('Supabase health:', h.supabase.error);
-      }
-    } catch (e) {
-      document.getElementById('health-badge').textContent = '⚠️ Server unreachable';
+  // ── Tabs ─────────────────────────────────────────────────────────────────
+  function showTab(name) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById(`panel-${name}`).classList.add('active');
+
+    if (name === 'map') {
+      initMapIfNeeded();
+      populateMapLocationFilter();
+      applyMapFilters();
+    }
+    if (name === 'admin') {
+      if (adminToken) showAdminDashboard(); else showAdminLogin();
     }
   }
 
-  // ── Fetch issues ──────────────────────────────────────────────────────────
+  // ── Health check ─────────────────────────────────────────────────────────
+  async function checkHealth() {
+    const dot = document.getElementById('health-dot');
+    const text = document.getElementById('health-text');
+    try {
+      const r = await fetch('/api/health');
+      const h = await r.json();
+      if (h.supabase.ok) {
+        dot.className = 'status-dot ok';
+        text.textContent = 'Connected';
+      } else {
+        dot.className = 'status-dot bad';
+        text.textContent = 'Database issue';
+        console.warn('Supabase health:', h.supabase.error);
+      }
+    } catch (e) {
+      dot.className = 'status-dot warn';
+      text.textContent = 'Server unreachable';
+    }
+  }
+
+  // ── Fetch issues ─────────────────────────────────────────────────────────
   async function loadIssues() {
     try {
       const r = await fetch('/api/issues');
@@ -168,31 +603,43 @@
       renderTable(applyFilters());
       document.getElementById('status').textContent =
         `Last updated: ${new Date().toLocaleTimeString()} — ${allIssues.length} issues`;
+      if (mapInitialized) {
+        populateMapLocationFilter();
+        applyMapFilters();
+      }
     } catch (e) {
       document.getElementById('table-wrap').innerHTML =
         `<div class="empty">Failed to load: ${e.message}</div>`;
     }
   }
 
-  // ── Filter logic ──────────────────────────────────────────────────────────
+  // ── Filter logic (Issues tab) ───────────────────────────────────────────
   function applyFilters() {
-    const cat   = document.getElementById('cat-filter').value;
-    const sev   = document.getElementById('sev-filter').value;
-    const query = document.getElementById('search').value.toLowerCase();
+    const cat    = document.getElementById('cat-filter').value;
+    const sev    = document.getElementById('sev-filter').value;
+    const source = document.getElementById('source-filter').value;
+    const query  = document.getElementById('search').value.toLowerCase();
 
     return allIssues.filter(t => {
       if (cat && t.issue_category !== cat) return false;
       if (sev === 'high' && t.severity_score < 7) return false;
       if (sev === 'med'  && (t.severity_score < 3 || t.severity_score >= 7)) return false;
       if (sev === 'low'  && t.severity_score >= 3) return false;
+      if (source && t.source !== source) return false;
       if (query && !t.text?.toLowerCase().includes(query)) return false;
       return true;
     });
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────
   function sevClass(s) {
     return s >= 7 ? 'sev-high' : s >= 3 ? 'sev-med' : 'sev-low';
+  }
+
+  function sourceBadge(source) {
+    if (source === 'simulated') return '<span class="badge badge-simulated">Simulated</span>';
+    if (source === 'manual')    return '<span class="badge badge-manual">Test / Manual</span>';
+    return '<span class="badge badge-twitter">Twitter</span>';
   }
 
   function renderTable(issues) {
@@ -203,15 +650,17 @@
 
     const rows = issues.map(t => `
       <tr>
-        <td>${t.text || '—'}</td>
+        <td>${t.text || '—'}${t.locality_name ? `<br><span style="color:#999;font-size:0.75rem;">${t.locality_name}</span>` : ''}</td>
         <td>${t.issue_category ? `<span class="tag">${t.issue_category}</span>` : '—'}</td>
+        <td>${sourceBadge(t.source)}</td>
         <td class="${sevClass(t.severity_score)}">${t.severity_score ?? '—'}</td>
         <td>${t.bert_label || '—'}</td>
-        <td>${t.troll_flag ? '🚨' : '✅'}</td>
+        <td>${t.troll_flag ? '<span class="troll-flag">Flagged</span>' : '<span class="troll-ok">OK</span>'}</td>
         <td>
           <button class="vote-btn" onclick="vote('${t.id}','up')">▲ ${t.upvotes}</button>
           <button class="vote-btn" onclick="vote('${t.id}','down')">▼ ${t.downvotes}</button>
         </td>
+        <td>${t.forwarded ? '<span class="badge badge-forwarded">Forwarded</span>' : '—'}</td>
         <td>${t.timestamp ? new Date(t.timestamp).toLocaleDateString() : '—'}</td>
       </tr>`).join('');
 
@@ -219,12 +668,14 @@
       <table>
         <thead>
           <tr>
-            <th style="width:35%">Issue Text</th>
+            <th style="width:28%">Issue Text</th>
             <th>Category</th>
+            <th>Source</th>
             <th>Severity</th>
             <th>Sentiment</th>
             <th>Troll</th>
             <th>Votes</th>
+            <th>Status</th>
             <th>Date</th>
           </tr>
         </thead>
@@ -232,40 +683,575 @@
       </table>`;
   }
 
-  // ── Vote ──────────────────────────────────────────────────────────────────
+  // ── Vote (shared by table + map popups) ─────────────────────────────────
+  async function getUserLocation() {
+    return new Promise(resolve => {
+      if (!navigator.geolocation) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        p => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }),
+        () => resolve(null),
+        { timeout: 8000 }
+      );
+    });
+  }
+
   async function vote(id, type) {
-    let userLat = null, userLon = null;
-    if (navigator.geolocation) {
-      await new Promise(res => navigator.geolocation.getCurrentPosition(
-        p => { userLat = p.coords.latitude; userLon = p.coords.longitude; res(); },
-        () => res()
-      ));
+    const loc = await getUserLocation();
+    if (!loc) {
+      alert('Location access is required to vote — please allow location permissions and try again.');
+      return;
     }
 
     try {
       const r = await fetch(`/api/tweets/${id}/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, userLat, userLon })
+        body: JSON.stringify({ type, userLat: loc.lat, userLon: loc.lon })
       });
       const data = await r.json();
-      if (!r.ok) { alert(data.error || 'Vote failed'); return; }
+      if (!r.ok) {
+        alert(data.error || 'Vote failed');
+        return;
+      }
 
-      // Update in-place
       const idx = allIssues.findIndex(t => t.id === id);
       if (idx !== -1) allIssues[idx] = data;
       renderTable(applyFilters());
+      if (mapInitialized) applyMapFilters();
     } catch (e) {
       alert('Network error');
     }
   }
 
-  // ── Event listeners ───────────────────────────────────────────────────────
+  // ── Event listeners ──────────────────────────────────────────────────────
   document.getElementById('cat-filter').addEventListener('change', () => renderTable(applyFilters()));
   document.getElementById('sev-filter').addEventListener('change', () => renderTable(applyFilters()));
+  document.getElementById('source-filter').addEventListener('change', () => renderTable(applyFilters()));
   document.getElementById('search').addEventListener('input',  () => renderTable(applyFilters()));
 
-  // ── Init ──────────────────────────────────────────────────────────────────
+  // ── MAP TAB ──────────────────────────────────────────────────────────────
+  let map, mapInitialized = false, mapLayerGroup;
+  let hoverTimer = null;
+  const hoverTooltipEl = () => document.getElementById('map-hover-tooltip');
+
+  function initMapIfNeeded() {
+    if (mapInitialized) return;
+    map = L.map('map').setView([31.7115, 76.5117], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 18,
+    }).addTo(map);
+    mapLayerGroup = L.layerGroup().addTo(map);
+    mapInitialized = true;
+
+    map.on('move zoom', hideHoverTooltip);
+  }
+
+  function sevColor(s) {
+    return s >= 7 ? '#c0392b' : s >= 3 ? '#e67e22' : '#27ae60';
+  }
+
+  // Severity-colored teardrop pin marker for the exact issue point.
+  function pinIcon(color) {
+    return L.divIcon({
+      className: '',
+      html: `<svg class="map-pin" viewBox="0 0 24 24">
+               <path fill="${color}" stroke="#1a1a2e" stroke-width="1"
+                 d="M12 0C7 0 3 4 3 9c0 6.5 9 15 9 15s9-8.5 9-15c0-5-4-9-9-9z"/>
+               <circle cx="12" cy="9" r="3.2" fill="#fff"/>
+             </svg>`,
+      iconSize: [22, 22],
+      iconAnchor: [11, 22],
+      popupAnchor: [0, -20],
+    });
+  }
+
+  // Circle style encodes location precision, not severity (severity is on the pin):
+  // exact -> solid, dark red; approximate -> dotted outline, light red.
+  function circleStyleFor(precision) {
+    return precision === 'exact'
+      ? { color: '#8b0000', fillColor: '#8b0000', fillOpacity: 0.18, weight: 2.5 }
+      : { color: '#e57373', fillColor: '#e57373', fillOpacity: 0.08, weight: 1.5, dashArray: '5,7' };
+  }
+
+  function populateMapLocationFilter() {
+    const sel = document.getElementById('map-loc-filter');
+    const current = sel.value;
+    const localities = [...new Set(allIssues.map(t => t.locality_name).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">All</option>' + localities.map(l => `<option value="${l}">${l}</option>`).join('');
+    sel.value = current;
+  }
+
+  function mapFilteredIssues() {
+    const cat  = document.getElementById('map-cat-filter').value;
+    const sev  = document.getElementById('map-sev-filter').value;
+    const loc  = document.getElementById('map-loc-filter').value;
+    const minUp = parseInt(document.getElementById('map-vote-filter').value || '0', 10);
+
+    return allIssues.filter(t => {
+      if (!t.latitude || !t.longitude) return false;
+      if (cat && t.issue_category !== cat) return false;
+      if (sev === 'high' && t.severity_score < 7) return false;
+      if (sev === 'med'  && (t.severity_score < 3 || t.severity_score >= 7)) return false;
+      if (sev === 'low'  && t.severity_score >= 3) return false;
+      if (loc && t.locality_name !== loc) return false;
+      if (minUp && (t.upvotes || 0) < minUp) return false;
+      return true;
+    });
+  }
+
+  function resetMapFilters() {
+    document.getElementById('map-cat-filter').value = '';
+    document.getElementById('map-sev-filter').value = '';
+    document.getElementById('map-loc-filter').value = '';
+    document.getElementById('map-vote-filter').value = '';
+    applyMapFilters();
+  }
+
+  ['map-cat-filter', 'map-sev-filter', 'map-loc-filter', 'map-vote-filter'].forEach(id => {
+    document.getElementById(id).addEventListener('change', applyMapFilters);
+  });
+
+  function hideHoverTooltip() {
+    clearTimeout(hoverTimer);
+    hoverTooltipEl().style.display = 'none';
+  }
+
+  function showHoverTooltip(latlng, t) {
+    const pt = map.latLngToContainerPoint(latlng);
+    const el = hoverTooltipEl();
+    el.innerHTML = `
+      <div class="mht-title">${t.issue_category ? t.issue_category.toUpperCase() : 'OTHER'} — ${t.locality_name || 'Unknown area'}</div>
+      <div class="mht-row"><span>Severity</span><span>${t.severity_score}</span></div>
+      <div class="mht-row"><span>Upvotes</span><span>${t.upvotes}</span></div>
+      <div class="mht-row"><span>Downvotes</span><span>${t.downvotes}</span></div>
+      <div class="mht-row"><span>Source</span><span>${t.source}</span></div>
+      <div class="mht-row"><span>Location</span><span>${t.location_precision === 'exact' ? 'Exact' : 'Approximate'}</span></div>
+      <div class="mht-row"><span>Status</span><span>${t.forwarded ? 'Forwarded' : 'Open'}</span></div>
+    `;
+    el.style.left = pt.x + 'px';
+    el.style.top = pt.y + 'px';
+    el.style.display = 'block';
+  }
+
+  function applyMapFilters() {
+    if (!mapInitialized) return;
+    mapLayerGroup.clearLayers();
+    hideHoverTooltip();
+
+    // Only issues that pass the active filters get drawn at all — their pin
+    // marker and impact circle are added together, so anything filtered out
+    // has both removed until the filter changes again.
+    mapFilteredIssues().forEach(t => {
+      const color = sevColor(t.severity_score);
+      const latlng = [t.latitude, t.longitude];
+      const precision = t.location_precision || 'approximate';
+
+      const circle = L.circle(latlng, { radius: 500, ...circleStyleFor(precision) }).addTo(mapLayerGroup);
+      const marker = L.marker(latlng, { icon: pinIcon(color) }).addTo(mapLayerGroup);
+
+      const popupHtml = `
+        <div style="font-size:0.85rem;max-width:220px;">
+          <div style="margin-bottom:4px;">${t.text}</div>
+          <div style="margin-bottom:6px;">
+            ${sourceBadge(t.source)}
+            ${t.issue_category ? `<span class="tag">${t.issue_category}</span>` : ''}
+            ${t.forwarded ? '<span class="badge badge-forwarded">Forwarded</span>' : ''}
+          </div>
+          <div style="color:#666;font-size:0.78rem;">${t.locality_name || 'Unknown area'} &middot; Severity ${t.severity_score}</div>
+          <div style="color:#999;font-size:0.72rem;margin-top:2px;">Location: ${precision === 'exact' ? 'Exact (confirmed)' : 'Approximate'}</div>
+          <div style="margin-top:6px;">
+            <button class="popup-vote-btn" onclick="vote('${t.id}','up')">▲ ${t.upvotes}</button>
+            <button class="popup-vote-btn" onclick="vote('${t.id}','down')">▼ ${t.downvotes}</button>
+          </div>
+        </div>`;
+      circle.bindPopup(popupHtml);
+      marker.bindPopup(popupHtml);
+
+      // Custom 2-second hover dwell tooltip (separate from the click popup above)
+      // — wired to both the pin and the circle so hovering either shows it.
+      [circle, marker].forEach(layer => {
+        layer.on('mouseover', () => {
+          clearTimeout(hoverTimer);
+          hoverTimer = setTimeout(() => showHoverTooltip(latlng, t), 2000);
+        });
+        layer.on('mouseout', hideHoverTooltip);
+      });
+      circle.on('mousemove', e => {
+        if (hoverTooltipEl().style.display === 'block') {
+          const pt = map.latLngToContainerPoint(e.latlng);
+          hoverTooltipEl().style.left = pt.x + 'px';
+          hoverTooltipEl().style.top = pt.y + 'px';
+        }
+      });
+    });
+  }
+
+  // ── ADMIN TAB ────────────────────────────────────────────────────────────
+  let adminToken = localStorage.getItem('pc_admin_token') || null;
+
+  function showAdminLogin() {
+    document.getElementById('admin-login-wrap').style.display = 'block';
+    document.getElementById('admin-dashboard').style.display = 'none';
+  }
+
+  function showAdminDashboard() {
+    document.getElementById('admin-login-wrap').style.display = 'none';
+    document.getElementById('admin-dashboard').style.display = 'block';
+    loadAdminData();
+  }
+
+  async function adminLogin() {
+    const username = document.getElementById('admin-user').value;
+    const password = document.getElementById('admin-pass').value;
+    const errEl = document.getElementById('admin-login-error');
+    errEl.textContent = '';
+
+    try {
+      const r = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await r.json();
+      if (!r.ok) { errEl.textContent = data.error || 'Login failed'; return; }
+      adminToken = data.token;
+      localStorage.setItem('pc_admin_token', adminToken);
+      showAdminDashboard();
+    } catch (e) {
+      errEl.textContent = 'Network error';
+    }
+  }
+
+  function adminLogout() {
+    adminToken = null;
+    localStorage.removeItem('pc_admin_token');
+    showAdminLogin();
+  }
+
+  async function loadAdminData() {
+    try {
+      const [complaintsRes, statsRes] = await Promise.all([
+        fetch('/api/admin/complaints', { headers: { Authorization: `Bearer ${adminToken}` } }),
+        fetch('/api/admin/stats',      { headers: { Authorization: `Bearer ${adminToken}` } }),
+      ]);
+
+      if (complaintsRes.status === 401 || statsRes.status === 401) {
+        adminLogout();
+        return;
+      }
+
+      allComplaints = await complaintsRes.json();
+      const stats = await statsRes.json();
+      renderAdminStats(stats);
+      renderAdminTable(applyAdminFilters());
+    } catch (e) {
+      document.getElementById('admin-table-wrap').innerHTML = `<div class="empty">Failed to load: ${e.message}</div>`;
+    }
+  }
+
+  function renderAdminStats(s) {
+    const cards = [
+      ['Total Complaints', s.total],
+      ['Forwarded', s.forwarded],
+      ['Suggested Forward', s.suggestedCount],
+      ['From Twitter', s.twitterCount],
+      ['Simulated', s.simulatedCount],
+      ['Test / Manual', s.manualCount],
+      ['Flagged as Troll', s.trollCount],
+    ];
+    document.getElementById('admin-stats').innerHTML = cards.map(([label, num]) => `
+      <div class="stat-card"><div class="num">${num}</div><div class="label">${label}</div></div>
+    `).join('');
+  }
+
+  // ── Admin filters (mirrors the Issues tab, scoped to admin data) ─────────
+  function applyAdminFilters() {
+    const cat    = document.getElementById('admin-cat-filter').value;
+    const sev    = document.getElementById('admin-sev-filter').value;
+    const source = document.getElementById('admin-source-filter').value;
+    const status = document.getElementById('admin-status-filter').value;
+    const query  = document.getElementById('admin-search').value.toLowerCase();
+
+    return allComplaints.filter(t => {
+      if (cat && t.issue_category !== cat) return false;
+      if (sev === 'high' && t.severity_score < 7) return false;
+      if (sev === 'med'  && (t.severity_score < 3 || t.severity_score >= 7)) return false;
+      if (sev === 'low'  && t.severity_score >= 3) return false;
+      if (source && t.source !== source) return false;
+      if (status === 'forwarded' && !t.forwarded) return false;
+      if (status === 'open' && t.forwarded) return false;
+      if (status === 'suggested' && !t.suggested_forward) return false;
+      if (query && !t.text?.toLowerCase().includes(query)) return false;
+      return true;
+    });
+  }
+
+  ['admin-cat-filter', 'admin-sev-filter', 'admin-source-filter', 'admin-status-filter'].forEach(id => {
+    document.getElementById(id).addEventListener('change', () => renderAdminTable(applyAdminFilters()));
+  });
+  document.getElementById('admin-search').addEventListener('input', () => renderAdminTable(applyAdminFilters()));
+
+  // ── Export CSV (respects the currently active admin filters) ────────────
+  function exportAdminCSV() {
+    const rows = applyAdminFilters();
+    const headers = ['Text','User','Source','Category','Severity','Upvotes','Downvotes','Locality','Troll','Suggested Forward','Status','Escalation Reason','Date'];
+    const csvLines = rows.map(t => [
+      t.text, t.username || t.user_id || '', t.source, t.issue_category || '', t.severity_score ?? '',
+      t.upvotes, t.downvotes, t.locality_name || '', t.troll_flag ? 'Flagged' : 'OK',
+      t.suggested_forward ? 'Yes' : 'No', t.forwarded ? 'Forwarded' : 'Open', t.escalation_reason || '',
+      t.timestamp ? new Date(t.timestamp).toISOString() : '',
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+
+    const csv = [headers.join(','), ...csvLines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `project-city-complaints-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function renderAdminTable(complaints) {
+    if (!complaints.length) {
+      document.getElementById('admin-table-wrap').innerHTML = '<div class="empty">No complaints match filters.</div>';
+      return;
+    }
+    const rows = complaints.map(t => `
+      <tr>
+        <td>${t.text || '—'}</td>
+        <td>${t.username || t.user_id || '—'}</td>
+        <td>${sourceBadge(t.source)}</td>
+        <td>${t.issue_category ? `<span class="tag">${t.issue_category}</span>` : '—'}</td>
+        <td class="${sevClass(t.severity_score)}">${t.severity_score ?? '—'}</td>
+        <td>▲${t.upvotes} / ▼${t.downvotes}</td>
+        <td>${t.locality_name || '—'}</td>
+        <td>${t.troll_flag ? '<span class="troll-flag">Flagged</span>' : '<span class="troll-ok">OK</span>'}</td>
+        <td>${t.suggested_forward ? `<span class="badge badge-suggested" title="${t.suggested_forward_reason || ''}">Suggested</span>` : '—'}</td>
+        <td>${t.forwarded ? `<span class="badge badge-forwarded" title="${t.escalation_reason || ''}">Forwarded</span>` : '—'}</td>
+        <td>${t.timestamp ? new Date(t.timestamp).toLocaleDateString() : '—'}</td>
+        <td><button class="vote-btn forward-btn" onclick="openForwardModal('${t.id}')">Forward</button></td>
+      </tr>`).join('');
+
+    document.getElementById('admin-table-wrap').innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th style="width:20%">Issue Text</th>
+            <th>User</th>
+            <th>Source</th>
+            <th>Category</th>
+            <th>Severity</th>
+            <th>Votes</th>
+            <th>Locality</th>
+            <th>Troll</th>
+            <th>Suggested</th>
+            <th>Status</th>
+            <th>Date</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  // ── Forward / compose-mail modal (proof of concept) ──────────────────────
+  // Admin can forward any complaint regardless of votes/severity. "Sending"
+  // is simulated (logged + marked forwarded via the API, same pattern as
+  // auto-escalation) — no real SMTP is wired up yet. "Open in Mail App" uses
+  // a real mailto: link so the whole flow can be demoed end-to-end today.
+  let forwardTargetId = null;
+  const CATEGORY_AUTHORITY_EMAIL = {
+    roads: 'roads.dept@hamirpurmc.gov.in', water: 'water.dept@hamirpurmc.gov.in',
+    electricity: 'electricity.dept@hamirpurmc.gov.in', waste: 'sanitation.dept@hamirpurmc.gov.in',
+    other: 'grievance@hamirpurmc.gov.in',
+  };
+
+  function openForwardModal(id) {
+    const t = allComplaints.find(c => c.id === id);
+    if (!t) return;
+    forwardTargetId = id;
+
+    const to = CATEGORY_AUTHORITY_EMAIL[t.issue_category] || CATEGORY_AUTHORITY_EMAIL.other;
+    const subject = `[Project City] ${t.issue_category ? t.issue_category.toUpperCase() : 'CIVIC'} complaint — ${t.locality_name || 'Unknown area'}`;
+    const body = `Complaint forwarded via Project City Admin Portal (manual forward).
+
+Issue: ${t.text}
+Category: ${t.issue_category || '—'}
+Severity: ${t.severity_score ?? '—'} / 10
+Locality: ${t.locality_name || '—'} (${t.location_precision === 'exact' ? 'exact location' : 'approximate location'})
+Coordinates: ${t.latitude ?? '—'}, ${t.longitude ?? '—'}
+Votes: +${t.upvotes} / -${t.downvotes}
+Source: ${t.source}
+Reported by: ${t.username || t.user_id || 'Unknown'}
+Reported at: ${t.timestamp ? new Date(t.timestamp).toLocaleString() : '—'}
+
+Please investigate and take appropriate action.
+— Project City Team`;
+
+    document.getElementById('fwd-to').value = to;
+    document.getElementById('fwd-subject').value = subject;
+    document.getElementById('fwd-body').value = body;
+    document.getElementById('forward-modal-overlay').classList.add('active');
+  }
+
+  function closeForwardModal() {
+    document.getElementById('forward-modal-overlay').classList.remove('active');
+    forwardTargetId = null;
+  }
+
+  function openMailApp() {
+    const to = encodeURIComponent(document.getElementById('fwd-to').value);
+    const subject = encodeURIComponent(document.getElementById('fwd-subject').value);
+    const body = encodeURIComponent(document.getElementById('fwd-body').value);
+    window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
+  }
+
+  async function sendForward() {
+    if (!forwardTargetId) return;
+    try {
+      const r = await fetch(`/api/admin/complaints/${forwardTargetId}/forward`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      const data = await r.json();
+      if (!r.ok) { alert(data.error || 'Forward failed'); return; }
+
+      const idx = allComplaints.findIndex(c => c.id === forwardTargetId);
+      if (idx !== -1) allComplaints[idx] = data;
+      closeForwardModal();
+      renderAdminTable(applyAdminFilters());
+    } catch (e) {
+      alert('Network error');
+    }
+  }
+
+  // ── DEMO MODE ────────────────────────────────────────────────────────────
+  // A fully client-side, scripted playback — deliberately independent of
+  // live/simulated backend data so it looks polished and consistent every
+  // single time it's run (e.g. in front of hackathon judges).
+  let demoTimeouts = [];
+
+  function clearDemoTimeouts() {
+    demoTimeouts.forEach(clearTimeout);
+    demoTimeouts = [];
+  }
+
+  function demoAt(ms, fn) { demoTimeouts.push(setTimeout(fn, ms)); }
+
+  function resetDemoUI() {
+    document.getElementById('demo-tweet-text').textContent = '';
+    document.getElementById('demo-badges').innerHTML = '';
+    document.getElementById('demo-pin').classList.remove('show');
+    document.getElementById('demo-ring').classList.remove('show');
+    document.getElementById('demo-vote-counter').textContent = '0';
+    document.getElementById('demo-toast').className = 'demo-toast';
+    document.getElementById('demo-toast').textContent = '';
+    document.getElementById('demo-escalate').classList.remove('show');
+    document.getElementById('demo-progress-fill').style.width = '0%';
+    document.getElementById('demo-replay-btn').style.display = 'none';
+  }
+
+  function setDemoCaption(text) {
+    document.getElementById('demo-caption').textContent = text;
+  }
+
+  function typeText(el, text, speed = 18) {
+    let i = 0;
+    const iv = setInterval(() => {
+      el.textContent = text.slice(0, i);
+      i++;
+      if (i > text.length) clearInterval(iv);
+    }, speed);
+  }
+
+  function showDemoBadge(text, bg, fg) {
+    const wrap = document.getElementById('demo-badges');
+    const el = document.createElement('span');
+    el.className = 'demo-badge';
+    el.style.background = bg; el.style.color = fg;
+    el.textContent = text;
+    wrap.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+  }
+
+  function flashToast(text, ok) {
+    const el = document.getElementById('demo-toast');
+    el.className = 'demo-toast ' + (ok ? 'ok' : 'bad') + ' show';
+    el.textContent = text;
+  }
+
+  const DEMO_COMPLAINT = 'Streetlights along the road near Green Park Colony have been non-functional for several days, causing safety concerns at night. #CITYHamirpur';
+
+  function startDemo() {
+    document.getElementById('demo-overlay').classList.add('active');
+    clearDemoTimeouts();
+    resetDemoUI();
+
+    const totalDuration = 15000;
+    document.getElementById('demo-progress-fill').style.transition = `width ${totalDuration}ms linear`;
+    requestAnimationFrame(() => {
+      document.getElementById('demo-progress-fill').style.width = '100%';
+    });
+
+    // Step 1 — complaint comes in
+    setDemoCaption('Step 1 of 5 — New complaint received (Twitter)');
+    typeText(document.getElementById('demo-tweet-text'), DEMO_COMPLAINT, 14);
+
+    // Step 2 — NLP tags it
+    demoAt(2600, () => {
+      setDemoCaption('Step 2 of 5 — NLP pipeline analyzes the complaint');
+      showDemoBadge('Category: Electricity', '#fdecd8', '#a8611c');
+      showDemoBadge('Sentiment: Negative', '#fde3e3', '#b03030');
+      showDemoBadge('Severity: 8.1 / 10', '#fde3e3', '#b03030');
+      showDemoBadge('Troll check: Passed', '#e6f7ec', '#1e7e42');
+    });
+
+    // Step 3 — location tagged on the map
+    demoAt(4800, () => {
+      setDemoCaption('Step 3 of 5 — Location tagged: Green Park Colony');
+      document.getElementById('demo-pin').classList.add('show');
+      document.getElementById('demo-ring').classList.add('show');
+    });
+
+    // Step 4 — voting simulation
+    const counterEl = document.getElementById('demo-vote-counter');
+    demoAt(6500, () => {
+      setDemoCaption('Step 4 of 5 — Nearby residents vote (500 m radius enforced)');
+      flashToast('Voter within 500 m — vote counted', true);
+      counterEl.textContent = '6';
+    });
+    demoAt(8000, () => {
+      flashToast('Voter 2.1 km away — location does not match, vote rejected', false);
+    });
+    demoAt(9200, () => {
+      flashToast('Voter within 500 m — vote counted', true);
+      counterEl.textContent = '14';
+    });
+    demoAt(10400, () => {
+      flashToast('Voter within 500 m — vote counted', true);
+      counterEl.textContent = '21';
+    });
+
+    // Step 5 — escalation
+    demoAt(11800, () => {
+      setDemoCaption('Step 5 of 5 — Auto-escalation triggered (20+ net votes)');
+      document.getElementById('demo-escalate').classList.add('show');
+    });
+
+    demoAt(14000, () => {
+      setDemoCaption('Demo complete');
+      document.getElementById('demo-replay-btn').style.display = 'inline-block';
+    });
+  }
+
+  function closeDemo() {
+    document.getElementById('demo-overlay').classList.remove('active');
+    clearDemoTimeouts();
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────────
   checkHealth();
   loadIssues();
   setInterval(loadIssues, 5 * 60 * 1000);   // refresh every 5 min
